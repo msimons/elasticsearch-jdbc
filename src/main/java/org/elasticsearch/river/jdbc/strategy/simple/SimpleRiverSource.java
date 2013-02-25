@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.river.jdbc.strategy.simple;
 
+import oracle.jdbc.OracleResultSet;
+import oracle.sql.OPAQUE;
+
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.io.Streams;
@@ -58,6 +61,7 @@ import java.text.ParseException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * A river source implementation for the 'simple' strategy.
@@ -73,6 +77,7 @@ import java.util.Locale;
  */
 public class SimpleRiverSource implements RiverSource {
 
+    public static final Pattern XML_PATTERN = Pattern.compile("<[^>]*>");
     private final ESLogger logger = ESLoggerFactory.getLogger(SimpleRiverSource.class.getName());
     /**
      * The river context
@@ -1084,6 +1089,33 @@ public class SimpleRiverSource implements RiverSource {
                 return result.getInt(i);
             }
             case Types.SQLXML: {
+            	if((result instanceof OracleResultSet)){
+            		OracleResultSet oracleResult = (OracleResultSet) result;
+            		
+            		OPAQUE op = oracleResult.getOPAQUE(i);
+            		if (op == null) {
+            			if (logger.isDebugEnabled()) {
+            				//logger.debug("returning null column: {}", i);
+            			}
+            			return null;
+            		}
+
+            		oracle.xdb.XMLType xt = oracle.xdb.XMLType.createXML(op);
+            		String xml = xt.getClobVal().stringValue();
+            		xt.close();
+            		
+            		
+            		if(xml != null) { 
+            			xml = XML_PATTERN.matcher(xml).replaceAll(" ");
+            		}
+            		
+            		if (logger.isDebugEnabled()) {
+            			//logger.debug("returning '{}' column: {} ",xml,i);
+            		}
+
+                	return xml;
+            	}
+            	
                 SQLXML xml = result.getSQLXML(i);
                 return xml != null ? xml.getString() : null;
             }
