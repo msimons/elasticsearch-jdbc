@@ -138,6 +138,7 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
                 .user(user)
                 .password(password)
                 .rounding(rounding)
+                .acknowledge(acknowledgeBulk)
                 .precision(scale);
 
         riverMouth = RiverServiceLoader.findRiverMouth(strategy);

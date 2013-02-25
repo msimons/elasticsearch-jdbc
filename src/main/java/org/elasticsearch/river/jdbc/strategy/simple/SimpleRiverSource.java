@@ -86,6 +86,7 @@ public class SimpleRiverSource implements RiverSource {
     protected Connection writeConnection;
     private int rounding;
     private int scale = -1;
+    private boolean acknowledge = false;
 
     public SimpleRiverSource() {
     }
@@ -242,7 +243,7 @@ public class SimpleRiverSource implements RiverSource {
         }
         close(results);
         close(statement);
-        acknowledge();
+        sendAcknowledge();
         return mergeDigest;
     }
 
@@ -278,7 +279,7 @@ public class SimpleRiverSource implements RiverSource {
      *
      * @throws SQLException
      */
-    public void acknowledge() throws SQLException {
+    public void sendAcknowledge() throws SQLException {
         // send acknowledge statement if defined
         if (context.pollAckStatement() != null) {
             Connection connection = connectionForWriting();
@@ -317,7 +318,7 @@ public class SimpleRiverSource implements RiverSource {
                 throw new SQLException("file not found: " + sql);
             }
         }
-        Connection connection = connectionForReading();
+        Connection connection = connectionForWriting();
         if (connection == null) {
             throw new SQLException("can't connect to source " + url);
         }
@@ -382,8 +383,16 @@ public class SimpleRiverSource implements RiverSource {
         statement.setMaxRows(context.maxRows());
         statement.setFetchSize(context.fetchSize());
         ResultSet set = statement.executeQuery();
-        if (!readConnection.getAutoCommit()) {
-            readConnection.commit();
+        
+        if(writeConnection == null) { 
+        	writeConnection = connectionForWriting();
+        	if (writeConnection == null) {
+                throw new SQLException("can't connect to source " + url);
+            }
+        }
+        
+        if (!writeConnection.getAutoCommit()) {
+            writeConnection.commit();
         }
         return set;
     }
@@ -523,6 +532,17 @@ public class SimpleRiverSource implements RiverSource {
             logger.warn("while closing write connection: " + e.getMessage());
         }
         return this;
+    }
+    
+    @Override
+    public SimpleRiverSource acknowledge(boolean enable) {
+        this.acknowledge = enable;
+        return this;
+    }
+
+    @Override
+    public boolean acknowledge() {
+        return acknowledge;
     }
 
     @Override

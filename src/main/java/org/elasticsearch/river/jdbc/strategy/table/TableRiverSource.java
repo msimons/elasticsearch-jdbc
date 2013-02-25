@@ -51,30 +51,53 @@ public class TableRiverSource extends SimpleRiverSource {
 
     @Override
     public String fetch() throws SQLException, IOException {
-        Connection connection = connectionForReading();
-        String[] optypes = new String[]{Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE};
+        Connection connection = connectionForWriting();
+        String[] optypes = new String[]{Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE, Operations.OP_UPDATE};
+
+        long now = System.currentTimeMillis();
+        Timestamp timestampFrom = new Timestamp(now - context.pollingInterval().millis());
+        Timestamp timestampNow = new Timestamp(now);
+
         for (String optype : optypes) {
             PreparedStatement statement;
             try {
-                statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            	if(acknowledge()) {
+            		logger.trace("fetching all riveritems with source_operation {}", optype);
+            		statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ?");
+            	} else {
+            		logger.trace("fetching all riveritems with source_operation {} and source_timestamp between {} and {} ", timestampFrom,timestampNow);
+            		statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            	}
+
             } catch (SQLException e) {
                 // hsqldb
-                statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            	if(acknowledge()){
+            		statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ?");
+            	} else {
+            		statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            	}
             }
             statement.setString(1, optype);
-            java.util.Date d = new java.util.Date();
-            long now = d.getTime();
-            statement.setTimestamp(2, new Timestamp(now - context.pollingInterval().millis()));
-            statement.setTimestamp(3, new Timestamp(now));
+            if(!acknowledge()){
+	            statement.setTimestamp(2, timestampFrom);
+	            statement.setTimestamp(3, timestampNow);
+            }
             ResultSet results;
             try {
                 results = executeQuery(statement);
             } catch (SQLException e) {
                 // mysql
-                statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ? and source_timestamp between ? and ?");
+            	if(acknowledge()) {
+            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ?");
+            	} else {
+            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ? and source_timestamp between ? and ?");
+            	}
+
                 statement.setString(1, optype);
-                statement.setTimestamp(2, new Timestamp(now - context.pollingInterval().millis()));
-                statement.setTimestamp(3, new Timestamp(now));
+                if(!acknowledge()){
+	                statement.setTimestamp(2, timestampFrom);
+	                statement.setTimestamp(3, timestampNow);
+                }
                 results = executeQuery(statement);
             }
             try {
@@ -87,11 +110,10 @@ public class TableRiverSource extends SimpleRiverSource {
             }
             close(results);
             close(statement);
-            acknowledge();
+            sendAcknowledge();
         }
         return null;
     }
-
     /**
      * Acknowledge a bulk item response back to the river table. Fill columns
      * target_timestamp, taget_operation, target_failed, target_message.
