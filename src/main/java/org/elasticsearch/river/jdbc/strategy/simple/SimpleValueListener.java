@@ -224,7 +224,9 @@ public class SimpleValueListener<O extends Object> implements ValueListener {
                 target.create(object);
             } else if (Operations.OP_DELETE.equals(object.optype())) {
                 target.delete(object);
-            } else {
+            } else if (Operations.OP_UPDATE.equals(object.optype())) { 
+            	target.update(object);
+            } else { 
                 throw new IllegalArgumentException("unknown optype: " + object.optype());
             }
         }

@@ -31,9 +31,9 @@ import org.elasticsearch.node.Node;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 
+import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
@@ -44,8 +44,8 @@ public abstract class AbstractRiverNodeTest extends AbstractRiverTest {
 
     public final String INDEX = "my_jdbc_river";
     public final String TYPE = "my_jdbc_river";
-    private Map<String, Node> nodes = newHashMap();
-    private Map<String, Client> clients = newHashMap();
+    private Map<String, Node> nodes = new HashMap<String, Node>();
+    private Map<String, Client> clients = new HashMap<String, Client>();
 
     private Settings defaultSettings = ImmutableSettings
             .settingsBuilder()
@@ -60,10 +60,12 @@ public abstract class AbstractRiverNodeTest extends AbstractRiverTest {
 
     @AfterMethod
     public void deleteIndices() {
+    	
         try {
             // clear test index
             client("1").admin().indices()
-                    .delete(new DeleteIndexRequest().indices(INDEX))
+                    .delete(new DeleteIndexRequest().setIndices(INDEX))
+                    
                     .actionGet();
         } catch (IndexMissingException e) {
             logger.error(e.getMessage());
@@ -71,7 +73,8 @@ public abstract class AbstractRiverNodeTest extends AbstractRiverTest {
         try {
             // clear rivers
             client("1").admin().indices()
-                    .delete(new DeleteIndexRequest().indices("_river"))
+                    .delete(new DeleteIndexRequest()
+                    .setIndices("_river"))
                     .actionGet();
         } catch (IndexMissingException e) {
             logger.error(e.getMessage());

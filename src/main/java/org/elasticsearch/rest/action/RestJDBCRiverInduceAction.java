@@ -19,7 +19,7 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +36,8 @@ import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiversService;
 import org.elasticsearch.river.jdbc.JDBCRiver;
+
+import com.google.common.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.lang.reflect.Field;

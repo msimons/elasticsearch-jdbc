@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.river.jdbc.support;
 
-import org.elasticsearch.common.base.Objects;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import com.google.common.base.Objects;
 
 import java.io.IOException;
 import java.security.MessageDigest;

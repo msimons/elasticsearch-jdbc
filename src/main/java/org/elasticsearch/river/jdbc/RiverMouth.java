@@ -69,6 +69,7 @@ public interface RiverMouth {
      * @return this river mouth
      */
     RiverMouth index(String index);
+   
 
     /**
      * Return index
@@ -175,6 +176,15 @@ public interface RiverMouth {
      * @throws IOException
      */
     void delete(StructuredObject object) throws IOException;
+    
+    
+    /**
+     * Update. Indicating that an object has been built and is ready to be updated.
+     * The source of the document is held by the XContentBuilder
+     * @param object
+     * @throws IOException
+     */
+    void update(StructuredObject object) throws IOException;
 
     /**
      * Flush data to the river mouth
