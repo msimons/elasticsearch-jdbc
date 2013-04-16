@@ -28,5 +28,6 @@ public interface Operations {
     String OP_CREATE = "create";
     String OP_INDEX = "index";
     String OP_DELETE = "delete";
+    String OP_UPDATE = "update";
 
 }

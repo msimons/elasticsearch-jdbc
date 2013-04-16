@@ -18,6 +18,12 @@
  */
 package org.elasticsearch.river.jdbc;
 
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,12 +40,6 @@ import org.elasticsearch.river.RiverSettings;
 import org.elasticsearch.river.jdbc.support.LocaleUtil;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.RiverServiceLoader;
-
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
 /**
  * The JDBC river
@@ -138,6 +138,7 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
                 .user(user)
                 .password(password)
                 .rounding(rounding)
+                .acknowledge(acknowledgeBulk)
                 .precision(scale);
 
         riverMouth = RiverServiceLoader.findRiverMouth(strategy);

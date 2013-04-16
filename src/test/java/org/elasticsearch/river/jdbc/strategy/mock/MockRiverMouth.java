@@ -44,6 +44,8 @@ public class MockRiverMouth implements RiverMouth {
         data = new TreeMap(); // sort order for stability in assertions
         counter = 0L;
     }
+    
+    
 
     @Override
     public void create(StructuredObject object) throws IOException {
@@ -58,6 +60,13 @@ public class MockRiverMouth implements RiverMouth {
         logger.debug("got data for index: {} {}", data, object.checksum());
         counter++;
     }
+    
+    @Override
+	public void update(StructuredObject object) throws IOException {
+		data.put(object.toString(), object.build());
+		logger.debug("got data for index: {} {}", data,object.checksum());
+		counter++;
+	}
 
     @Override
     public void delete(StructuredObject object) throws IOException {

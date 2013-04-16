@@ -52,29 +52,52 @@ public class TableRiverSource extends SimpleRiverSource {
     @Override
     public String fetch() throws SQLException, IOException {
         Connection connection = connectionForReading();
-        String[] optypes = new String[]{Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE};
+        String[] optypes = new String[]{Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE, Operations.OP_UPDATE};
+
+        long now = System.currentTimeMillis();
+        Timestamp timestampFrom = new Timestamp(now - context.pollingInterval().millis());
+        Timestamp timestampNow = new Timestamp(now);
+
         for (String optype : optypes) {
             PreparedStatement statement;
             try {
-                statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            	if(acknowledge()) {
+            		logger.trace("fetching all riveritems with source_operation {}", optype);
+            		statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ?");
+            	} else {
+            		logger.trace("fetching all riveritems with source_operation {} and source_timestamp between {} and {} ", timestampFrom,timestampNow);
+            		statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            	}
+
             } catch (SQLException e) {
                 // hsqldb
-                statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            	if(acknowledge()){
+            		statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ?");
+            	} else {
+            		statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            	}
             }
             statement.setString(1, optype);
-            java.util.Date d = new java.util.Date();
-            long now = d.getTime();
-            statement.setTimestamp(2, new Timestamp(now - context.pollingInterval().millis()));
-            statement.setTimestamp(3, new Timestamp(now));
+            if(!acknowledge()){
+	            statement.setTimestamp(2, timestampFrom);
+	            statement.setTimestamp(3, timestampNow);
+            }
             ResultSet results;
             try {
                 results = executeQuery(statement);
             } catch (SQLException e) {
                 // mysql
-                statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ? and source_timestamp between ? and ?");
+            	if(acknowledge()) {
+            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ?");
+            	} else {
+            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ? and source_timestamp between ? and ?");
+            	}
+
                 statement.setString(1, optype);
-                statement.setTimestamp(2, new Timestamp(now - context.pollingInterval().millis()));
-                statement.setTimestamp(3, new Timestamp(now));
+                if(!acknowledge()){
+	                statement.setTimestamp(2, timestampFrom);
+	                statement.setTimestamp(3, timestampNow);
+                }
                 results = executeQuery(statement);
             }
             try {
@@ -87,11 +110,10 @@ public class TableRiverSource extends SimpleRiverSource {
             }
             close(results);
             close(statement);
-            acknowledge();
+            sendAcknowledge();
         }
         return null;
     }
-
     /**
      * Acknowledge a bulk item response back to the river table. Fill columns
      * target_timestamp, taget_operation, target_failed, target_message.
@@ -104,48 +126,41 @@ public class TableRiverSource extends SimpleRiverSource {
         if (response == null) {
             logger.warn("can't acknowledge null bulk response");
         }
+        
+        // if acknowlegde is disabled return current. 
+        if(!acknowledge()){
+        	return this;
+        }
+        
         try {
-            Connection connection = connectionForWriting();
             String riverName = context.riverName();
             for (BulkItemResponse resp : response.items()) {
-                PreparedStatement pstmt;
-                try {
-                    pstmt = prepareUpdate("update \"" + riverName + "\" set \"source_operation\" = 'ack' where \"_index\" = ? and \"_type\" = ? and \"_id\" = ?");
-                } catch (SQLException e) {
-                    try {
-                        // hsqldb
-                        pstmt = prepareUpdate("update " + riverName + " set \"source_operation\" = 'ack' where \"_index\" = ? and \"_type\" = ? and \"_id\" = ?");
-                    } catch (SQLException e1) {
-                        // mysql
-                        pstmt = prepareUpdate("update " + riverName + " set source_operation = 'ack' where _index = ? and _type = ? and _id = ?");
-                    }
-                }
+                PreparedStatement pstmt = null;
                 List<Object> params = new ArrayList();
-                params.add(resp.index());
-                params.add(resp.type());
-                params.add(resp.id());
-                bind(pstmt, params);
-                executeUpdate(pstmt);
-                close(pstmt);
+                
                 try {
-                    pstmt = prepareUpdate("update \"" + riverName + "_ack\" set \"target_timestamp\" = ?, \"target_operation\" = ?, \"target_failed\" = ?, \"target_message\" = ? where \"_index\" = ? and \"_type\" = ? and \"_id\" = ?");
+                    pstmt = prepareUpdate("insert into \""+riverName+"_ack\" (\"_index\",\"_type\",\"_id\","+
+                    		"\"target_timestamp\",\"target_operation\",\"target_failed\",\"target_message\") values (?,?,?,?,?,?,?)");
+
                 } catch (SQLException e) {
                     try {
                         // hsqldb
-                        pstmt = prepareUpdate("update " + riverName + "_ack set \"target_timestamp\" = ?, \"target_operation\" = ?, \"target_failed\" = ?, \"target_message\" = ? where \"_index\" = ? and \"_type\" = ? and \"_id\" = ?");
+                    	pstmt = prepareUpdate("insert into " + riverName + "_ack (\"_index\",\"_type\",\"_id\","+
+                        		"\"target_timestamp\",\"target_operation\",\"target_failed\",\"target_message\") values (?,?,?,?,?,?,?)");
                     } catch (SQLException e1) {
                         // mysql
-                        pstmt = prepareUpdate("update " + riverName + "_ack set target_timestamp = ?, target_operation = ?, target_failed = ?, target_message = ? where _index = ? and _type = ? and _id = ?");
+                    	pstmt = prepareUpdate("insert into " + riverName + "_ack (_index,_type,_id,"+
+                        		"target_timestamp,target_operation,target_failed,target_message) values (?,?,?,?,?,?,?)");
                     }
                 }
                 params = new ArrayList();
+                params.add(resp.getIndex());
+                params.add(resp.getType());
+                params.add(resp.getId());
                 params.add(new Timestamp(new java.util.Date().getTime()));
                 params.add(resp.opType());
-                params.add(resp.failed());
-                params.add(resp.failureMessage());
-                params.add(resp.index());
-                params.add(resp.type());
-                params.add(resp.id());
+                params.add(resp.isFailed());
+                params.add(resp.getFailureMessage());
                 bind(pstmt, params);
                 executeUpdate(pstmt);
                 close(pstmt);

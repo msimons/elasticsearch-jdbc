@@ -18,18 +18,6 @@
  */
 package org.elasticsearch.river.jdbc.strategy.simple;
 
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.common.Base64;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.format.DateTimeFormat;
-import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.river.jdbc.RiverSource;
-import org.elasticsearch.river.jdbc.support.RiverContext;
-import org.elasticsearch.river.jdbc.support.ValueListener;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -59,6 +47,22 @@ import java.text.ParseException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
+
+import oracle.jdbc.OracleResultSet;
+import oracle.sql.OPAQUE;
+
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.format.DateTimeFormat;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.river.jdbc.RiverSource;
+import org.elasticsearch.river.jdbc.support.RiverContext;
+import org.elasticsearch.river.jdbc.support.ValueListener;
 
 /**
  * A river source implementation for the 'simple' strategy.
@@ -74,6 +78,7 @@ import java.util.Locale;
  */
 public class SimpleRiverSource implements RiverSource {
 
+    public static final Pattern XML_PATTERN = Pattern.compile("<[^>]*>");
     private final ESLogger logger = ESLoggerFactory.getLogger(SimpleRiverSource.class.getName());
     /**
      * The river context
@@ -87,6 +92,7 @@ public class SimpleRiverSource implements RiverSource {
     protected Connection writeConnection;
     private int rounding;
     private int scale = -1;
+    private boolean acknowledge = false;
 
     public SimpleRiverSource() {
     }
@@ -252,7 +258,7 @@ public class SimpleRiverSource implements RiverSource {
         }
         close(results);
         close(statement);
-        acknowledge();
+        sendAcknowledge();
         return mergeDigest;
     }
 
@@ -288,7 +294,7 @@ public class SimpleRiverSource implements RiverSource {
      *
      * @throws SQLException
      */
-    public void acknowledge() throws SQLException {
+    public void sendAcknowledge() throws SQLException {
         // send acknowledge statement if defined
         if (context.pollAckStatement() != null) {
             Connection connection = connectionForWriting();
@@ -394,6 +400,14 @@ public class SimpleRiverSource implements RiverSource {
         statement.setFetchSize(context.fetchSize());
         logger.debug("executing prepared statement");
         ResultSet set = statement.executeQuery();
+
+        if(readConnection == null) { 
+        	readConnection = connectionForReading();
+        	if (readConnection == null) {
+                throw new SQLException("can't connect to source " + url);
+            }
+        }
+        
         return set;
     }
 
@@ -554,6 +568,17 @@ public class SimpleRiverSource implements RiverSource {
             logger.warn("while closing write connection: " + e.getMessage());
         }
         return this;
+    }
+    
+    @Override
+    public SimpleRiverSource acknowledge(boolean enable) {
+        this.acknowledge = enable;
+        return this;
+    }
+
+    @Override
+    public boolean acknowledge() {
+        return acknowledge;
     }
 
     @Override
@@ -1114,6 +1139,33 @@ public class SimpleRiverSource implements RiverSource {
                 return result.wasNull() ? null : o;
             }
             case Types.SQLXML: {
+            	if((result instanceof OracleResultSet)){
+            		OracleResultSet oracleResult = (OracleResultSet) result;
+            		
+            		OPAQUE op = oracleResult.getOPAQUE(i);
+            		if (op == null) {
+            			if (logger.isDebugEnabled()) {
+            				//logger.debug("returning null column: {}", i);
+            			}
+            			return null;
+            		}
+
+            		oracle.xdb.XMLType xt = oracle.xdb.XMLType.createXML(op);
+            		String xml = xt.getClobVal().stringValue();
+            		xt.close();
+            		
+            		
+            		if(xml != null) { 
+            			xml = XML_PATTERN.matcher(xml).replaceAll(" ");
+            		}
+            		
+            		if (logger.isDebugEnabled()) {
+            			//logger.debug("returning '{}' column: {} ",xml,i);
+            		}
+
+                	return xml;
+            	}
+            	
                 SQLXML xml = result.getSQLXML(i);
                 return xml != null ? xml.getString() : null;
             }

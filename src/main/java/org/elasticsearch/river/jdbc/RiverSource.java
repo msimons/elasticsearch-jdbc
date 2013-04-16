@@ -70,6 +70,8 @@ public interface RiverSource {
      * @return this river source
      */
     RiverSource driver(String driver);
+    
+    
 
     /**
      * Set the driver URL
@@ -86,6 +88,19 @@ public interface RiverSource {
      * @return this river source
      */
     RiverSource user(String user);
+    
+    /**
+     * Set acknowledge
+     * @param enable true for enable
+     * @return this river mouth
+     */
+    RiverSource acknowledge(boolean enable);
+
+    /**
+     * Get acknowledge
+     * @return true if the acknowledge is enabled
+     */
+    boolean acknowledge();
 
     /**
      * Set the password authentication

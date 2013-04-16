@@ -28,6 +28,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.update.PartialDocumentUpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -95,7 +96,7 @@ public class SimpleRiverMouth implements RiverMouth {
             }
         	outstandingBulkRequests.decrementAndGet();
             logger.info("bulk [{}] success [{} items] [{}ms]",
-                    executionId, response.items().length, response.took().millis());
+                    executionId, response.items().length, response.getTook().millis());
             
         }
 
@@ -226,48 +227,69 @@ public class SimpleRiverMouth implements RiverMouth {
     }
 
     public void index(StructuredObject object, boolean create) throws IOException {
-        if (!checkStatus()) {
-            return;
+        IndexRequest request = createIndexRequest(object, create);
+        if(request != null) { 
+        	bulk.add(request);
         }
+    }
+    
+    private IndexRequest createIndexRequest(StructuredObject object, boolean create) throws IOException {
+    	 if (!checkStatus()) {
+             return null;
+         }
 
-        if (Strings.hasLength(object.index())) {
-            index(object.index());
-        }
-        if (Strings.hasLength(object.type())) {
-            type(object.type());
-        }
-        if (Strings.hasLength(object.id())) {
-            id(object.id());
-        }
-        IndexRequest request = Requests.indexRequest(index())
-                .type(type())
-                .id(id())
-                .source(object.build());
-        if (create) {
-            request.create(create);
-        }
-        if (object.meta(StructuredObject.VERSION) != null && versioning) {
-            request.versionType(VersionType.EXTERNAL)
-                    .version(Long.parseLong(object.meta(StructuredObject.VERSION)));
-        }
-        if (object.meta(StructuredObject.ROUTING) != null) {
-            request.routing(object.meta(StructuredObject.ROUTING));
-        }
-        if (object.meta(StructuredObject.PERCOLATE) != null) {
-            request.percolate(object.meta(StructuredObject.PERCOLATE));
-        }
-        if (object.meta(StructuredObject.PARENT) != null) {
-            request.parent(object.meta(StructuredObject.PARENT));
-        }
-        if (object.meta(StructuredObject.TIMESTAMP) != null) {
-            request.timestamp(object.meta(StructuredObject.TIMESTAMP));
-        }
-        if (object.meta(StructuredObject.TTL) != null) {
-            request.ttl(Long.parseLong(object.meta(StructuredObject.TTL)));
-        }
-        bulk.add(request);
+         if (Strings.hasLength(object.index())) {
+             index(object.index());
+         }
+         if (Strings.hasLength(object.type())) {
+             type(object.type());
+         }
+         if (Strings.hasLength(object.id())) {
+             id(object.id());
+         }
+         IndexRequest request = Requests.indexRequest(index())
+                 .type(type())
+                 .id(id())
+                 .source(object.build());
+         if (create) {
+             request.create(create);
+         }
+         if (object.meta(StructuredObject.VERSION) != null && versioning) {
+             request.versionType(VersionType.EXTERNAL)
+                     .version(Long.parseLong(object.meta(StructuredObject.VERSION)));
+         }
+         if (object.meta(StructuredObject.ROUTING) != null) {
+             request.routing(object.meta(StructuredObject.ROUTING));
+         }
+         if (object.meta(StructuredObject.PERCOLATE) != null) {
+             request.percolate(object.meta(StructuredObject.PERCOLATE));
+         }
+         if (object.meta(StructuredObject.PARENT) != null) {
+             request.parent(object.meta(StructuredObject.PARENT));
+         }
+         if (object.meta(StructuredObject.TIMESTAMP) != null) {
+             request.timestamp(object.meta(StructuredObject.TIMESTAMP));
+         }
+         if (object.meta(StructuredObject.TTL) != null) {
+             request.ttl(Long.parseLong(object.meta(StructuredObject.TTL)));
+         }
+         
+         return request;
     }
 
+    @Override
+    public void update(StructuredObject object) throws IOException {     	
+    	IndexRequest indexRequest = createIndexRequest(object, true);
+    	
+    	if(indexRequest != null){
+    		PartialDocumentUpdateRequest updateRequest = new PartialDocumentUpdateRequest(
+	    			object.index(), object.type(), object.id())
+	    		   .setDoc(indexRequest)
+	    		   .setUpsertRequest(indexRequest);
+	    			
+	    	bulk.add(updateRequest);
+    	}
+    }
 
     @Override
     public void delete(StructuredObject object) {
@@ -288,6 +310,7 @@ public class SimpleRiverMouth implements RiverMouth {
             return; // skip if no doc is specified to delete
         }
         DeleteRequest request = Requests.deleteRequest(index()).type(type()).id(id());
+      
         if (object.meta(StructuredObject.ROUTING) != null) {
             request.routing(object.meta(StructuredObject.ROUTING));
         }
@@ -321,7 +344,7 @@ public class SimpleRiverMouth implements RiverMouth {
             return;
         }
 
-        if (client.admin().indices().prepareExists(index).execute().actionGet().exists()) {
+        if (client.admin().indices().prepareExists(index).execute().actionGet().isExists()) {
             if (Strings.hasLength(settings)) {
                 client.admin().indices().prepareUpdateSettings(index).setSettings(settings).execute().actionGet();
             }

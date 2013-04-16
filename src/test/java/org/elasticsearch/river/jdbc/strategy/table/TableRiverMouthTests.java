@@ -33,6 +33,8 @@ import org.elasticsearch.river.jdbc.JDBCRiver;
 import org.elasticsearch.river.jdbc.RiverSource;
 import org.elasticsearch.river.jdbc.strategy.simple.AbstractRiverNodeTest;
 import org.elasticsearch.river.jdbc.support.RiverContext;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
@@ -56,7 +58,8 @@ public class TableRiverMouthTests extends AbstractRiverNodeTest {
     @Parameters({"river1", "sql1"})
     public void testTableRiver(String riverResource, String sql) throws SQLException, IOException, InterruptedException {
         Connection connection = source.connectionForWriting();
-        createData(connection, sql, 101);
+        createData(connection, sql, 81);
+        createUpdate(connection, sql , 2, "updatedname_value");
         createDelete(connection, sql, 1);
         source.closeWriting();
         startNode("1");
@@ -64,11 +67,49 @@ public class TableRiverMouthTests extends AbstractRiverNodeTest {
         RiverSettings settings = riverSettings(riverResource);
         JDBCRiver river = new JDBCRiver(new RiverName(INDEX, TYPE), settings, "_river", client);
         river.once();
-        Thread.sleep(3000L); // let the good things happen
-        assertEquals(client.prepareSearch(INDEX).setTypes(TYPE).execute().actionGet().getHits().getTotalHits(), 100);
+        Thread.sleep(10000L); // let the good things happen
+        
+        SearchHits hits = client.prepareSearch(INDEX).setTypes(TYPE).addField("name").setSize(80).execute().actionGet().getHits();
+        assertEquals(hits.getTotalHits(), 80);
+        boolean updateSucceeded = false;
+        for(SearchHit hit : hits.getHits()){
+        	String id = hit.id();
+        	if("2".equals(hit.id())) { 
+        		String updateRowName = hit.field("name").getValue();
+        		if("updatedname_value".equals(updateRowName)) { 
+        			updateSucceeded = true;
+        		}
+        	}
+        }
+        assertEquals(updateSucceeded, true);
+        
         river.close();
     }
 
+    @SuppressWarnings("unchecked")
+	private void createUpdate(Connection connection, String sql, final int id, final String name)
+            throws SQLException {
+        
+    	PreparedStatement stmt = connection.prepareStatement(sql);
+        List<Object> params = new ArrayList() {
+            {
+                add(INDEX);
+                add(TYPE);
+                add(Integer.toString(id));
+                add("update");
+                add(name);
+                add(null);
+                add(null);
+            }
+        };
+        source.bind(stmt, params);
+        stmt.execute();
+
+        if (!connection.getAutoCommit()) {
+            connection.commit();
+        }
+    }
+    
     @SuppressWarnings("unchecked")
 	private void createDelete(Connection connection, String sql, final int id)
             throws SQLException {
