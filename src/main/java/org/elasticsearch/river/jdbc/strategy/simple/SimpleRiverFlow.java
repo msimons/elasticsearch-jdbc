@@ -18,6 +18,14 @@
  */
 package org.elasticsearch.river.jdbc.strategy.simple;
 
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+
+import java.io.IOException;
+import java.util.Date;
+import java.util.Map;
+
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -33,14 +41,6 @@ import org.elasticsearch.river.jdbc.RiverSource;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.StructuredObject;
 import org.elasticsearch.search.SearchHit;
-
-import java.io.IOException;
-import java.util.Date;
-import java.util.Map;
-
-import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
  * A river flow implementation for the 'simple' strategy.
@@ -195,9 +195,9 @@ public class SimpleRiverFlow implements RiverFlow {
                 logger.debug(builder.string());
             }
             client.prepareBulk().add(indexRequest(context.riverIndexName())
-            		.setType(context.riverName())
-                    .setId(ID_INFO_RIVER_INDEX)
-                    .setSource(builder))
+            		.type(context.riverName())
+                    .id(ID_INFO_RIVER_INDEX)
+                    .source(builder))
                     .execute().actionGet();
             // house keeping if data has changed
             if (digest != null && mergeDigest != null && !mergeDigest.equals(digest)) {

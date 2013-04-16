@@ -51,7 +51,7 @@ public class TableRiverSource extends SimpleRiverSource {
 
     @Override
     public String fetch() throws SQLException, IOException {
-        Connection connection = connectionForWriting();
+        Connection connection = connectionForReading();
         String[] optypes = new String[]{Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE, Operations.OP_UPDATE};
 
         long now = System.currentTimeMillis();
@@ -126,48 +126,41 @@ public class TableRiverSource extends SimpleRiverSource {
         if (response == null) {
             logger.warn("can't acknowledge null bulk response");
         }
+        
+        // if acknowlegde is disabled return current. 
+        if(!acknowledge()){
+        	return this;
+        }
+        
         try {
-            Connection connection = connectionForWriting();
             String riverName = context.riverName();
-            for (BulkItemResponse resp : response.getItems()) {
-                PreparedStatement pstmt;
-                try {
-                    pstmt = prepareUpdate("update \"" + riverName + "\" set \"source_operation\" = 'ack' where \"_index\" = ? and \"_type\" = ? and \"_id\" = ?");
-                } catch (SQLException e) {
-                    try {
-                        // hsqldb
-                        pstmt = prepareUpdate("update " + riverName + " set \"source_operation\" = 'ack' where \"_index\" = ? and \"_type\" = ? and \"_id\" = ?");
-                    } catch (SQLException e1) {
-                        // mysql
-                        pstmt = prepareUpdate("update " + riverName + " set source_operation = 'ack' where _index = ? and _type = ? and _id = ?");
-                    }
-                }
+            for (BulkItemResponse resp : response.items()) {
+                PreparedStatement pstmt = null;
                 List<Object> params = new ArrayList();
-                params.add(resp.getIndex());
-                params.add(resp.getType());
-                params.add(resp.getId());
-                bind(pstmt, params);
-                executeUpdate(pstmt);
-                close(pstmt);
+                
                 try {
-                    pstmt = prepareUpdate("update \"" + riverName + "_ack\" set \"target_timestamp\" = ?, \"target_operation\" = ?, \"target_failed\" = ?, \"target_message\" = ? where \"_index\" = ? and \"_type\" = ? and \"_id\" = ?");
+                    pstmt = prepareUpdate("insert into \""+riverName+"_ack\" (\"_index\",\"_type\",\"_id\","+
+                    		"\"target_timestamp\",\"target_operation\",\"target_failed\",\"target_message\") values (?,?,?,?,?,?,?)");
+
                 } catch (SQLException e) {
                     try {
                         // hsqldb
-                        pstmt = prepareUpdate("update " + riverName + "_ack set \"target_timestamp\" = ?, \"target_operation\" = ?, \"target_failed\" = ?, \"target_message\" = ? where \"_index\" = ? and \"_type\" = ? and \"_id\" = ?");
+                    	pstmt = prepareUpdate("insert into " + riverName + "_ack (\"_index\",\"_type\",\"_id\","+
+                        		"\"target_timestamp\",\"target_operation\",\"target_failed\",\"target_message\") values (?,?,?,?,?,?,?)");
                     } catch (SQLException e1) {
                         // mysql
-                        pstmt = prepareUpdate("update " + riverName + "_ack set target_timestamp = ?, target_operation = ?, target_failed = ?, target_message = ? where _index = ? and _type = ? and _id = ?");
+                    	pstmt = prepareUpdate("insert into " + riverName + "_ack (_index,_type,_id,"+
+                        		"target_timestamp,target_operation,target_failed,target_message) values (?,?,?,?,?,?,?)");
                     }
                 }
                 params = new ArrayList();
-                params.add(new Timestamp(new java.util.Date().getTime()));
-                params.add(resp.getOpType());
-                params.add(resp.isFailed());
-                params.add(resp.getFailureMessage());
                 params.add(resp.getIndex());
                 params.add(resp.getType());
                 params.add(resp.getId());
+                params.add(new Timestamp(new java.util.Date().getTime()));
+                params.add(resp.opType());
+                params.add(resp.isFailed());
+                params.add(resp.getFailureMessage());
                 bind(pstmt, params);
                 executeUpdate(pstmt);
                 close(pstmt);

@@ -23,14 +23,12 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.PartialDocumentUpdateRequest;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -98,7 +96,7 @@ public class SimpleRiverMouth implements RiverMouth {
             }
         	outstandingBulkRequests.decrementAndGet();
             logger.info("bulk [{}] success [{} items] [{}ms]",
-                    executionId, response.getItems().length, response.getTook().millis());
+                    executionId, response.items().length, response.getTook().millis());
             
         }
 
@@ -250,30 +248,30 @@ public class SimpleRiverMouth implements RiverMouth {
              id(object.id());
          }
          IndexRequest request = Requests.indexRequest(index())
-                 .setType(type())
-                 .setId(id())
-                 .setSource(object.build());
+                 .type(type())
+                 .id(id())
+                 .source(object.build());
          if (create) {
-             request.setCreate(create);
+             request.create(create);
          }
          if (object.meta(StructuredObject.VERSION) != null && versioning) {
-             request.setVersionType(VersionType.EXTERNAL)
-                     .setVersion(Long.parseLong(object.meta(StructuredObject.VERSION)));
+             request.versionType(VersionType.EXTERNAL)
+                     .version(Long.parseLong(object.meta(StructuredObject.VERSION)));
          }
          if (object.meta(StructuredObject.ROUTING) != null) {
-             request.setRouting(object.meta(StructuredObject.ROUTING));
+             request.routing(object.meta(StructuredObject.ROUTING));
          }
          if (object.meta(StructuredObject.PERCOLATE) != null) {
-             request.setPercolate(object.meta(StructuredObject.PERCOLATE));
+             request.percolate(object.meta(StructuredObject.PERCOLATE));
          }
          if (object.meta(StructuredObject.PARENT) != null) {
-             request.setParent(object.meta(StructuredObject.PARENT));
+             request.parent(object.meta(StructuredObject.PARENT));
          }
          if (object.meta(StructuredObject.TIMESTAMP) != null) {
-             request.setTimestamp(object.meta(StructuredObject.TIMESTAMP));
+             request.timestamp(object.meta(StructuredObject.TIMESTAMP));
          }
          if (object.meta(StructuredObject.TTL) != null) {
-             request.setTtl(Long.parseLong(object.meta(StructuredObject.TTL)));
+             request.ttl(Long.parseLong(object.meta(StructuredObject.TTL)));
          }
          
          return request;
@@ -311,17 +309,17 @@ public class SimpleRiverMouth implements RiverMouth {
         if (id == null) {
             return; // skip if no doc is specified to delete
         }
-        DeleteRequest request = Requests.deleteRequest(index()).setType(type()).setId(id());
+        DeleteRequest request = Requests.deleteRequest(index()).type(type()).id(id());
       
         if (object.meta(StructuredObject.ROUTING) != null) {
-            request.setRouting(object.meta(StructuredObject.ROUTING));
+            request.routing(object.meta(StructuredObject.ROUTING));
         }
         if (object.meta(StructuredObject.PARENT) != null) {
-            request.setParent(object.meta(StructuredObject.PARENT));
+            request.parent(object.meta(StructuredObject.PARENT));
         }
         if (object.meta(StructuredObject.VERSION) != null && versioning) {
-            request.setVersionType(VersionType.EXTERNAL)
-                    .setVersion(Long.parseLong(object.meta(StructuredObject.VERSION)));
+            request.versionType(VersionType.EXTERNAL)
+                    .version(Long.parseLong(object.meta(StructuredObject.VERSION)));
         }
         bulk.add(request);
     }

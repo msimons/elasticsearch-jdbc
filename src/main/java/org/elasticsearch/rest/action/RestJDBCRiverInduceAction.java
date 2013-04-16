@@ -18,8 +18,12 @@
  */
 package org.elasticsearch.rest.action;
 
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.Map;
+
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.*;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
@@ -37,11 +41,6 @@ import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiversService;
 import org.elasticsearch.river.jdbc.JDBCRiver;
 
-import com.google.common.collect.ImmutableMap;
-
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.util.Map;
 
 /**
  * The JDBC River REST fire move. The river can be fired once to run

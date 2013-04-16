@@ -18,16 +18,16 @@
  */
 package org.elasticsearch.river.jdbc.support;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import com.google.common.base.Objects;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import org.elasticsearch.common.base.Objects;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
 
 /**
  * A structured object is composed by an object data source together with
@@ -62,6 +62,7 @@ public class StructuredObject implements PseudoColumnNames, Comparable<Structure
     public String index() {
         return meta.get(INDEX);
     }
+   
 
     public StructuredObject type(String type) {
         meta.put(TYPE, type);

@@ -18,21 +18,6 @@
  */
 package org.elasticsearch.river.jdbc.strategy.simple;
 
-import oracle.jdbc.OracleResultSet;
-import oracle.sql.OPAQUE;
-
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.common.Base64;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.river.jdbc.RiverSource;
-import org.elasticsearch.river.jdbc.support.RiverContext;
-import org.elasticsearch.river.jdbc.support.ValueListener;
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -62,6 +47,21 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
+
+import oracle.jdbc.OracleResultSet;
+import oracle.sql.OPAQUE;
+
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.format.DateTimeFormat;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.river.jdbc.RiverSource;
+import org.elasticsearch.river.jdbc.support.RiverContext;
+import org.elasticsearch.river.jdbc.support.ValueListener;
 
 /**
  * A river source implementation for the 'simple' strategy.
@@ -323,7 +323,7 @@ public class SimpleRiverSource implements RiverSource {
                 throw new SQLException("file not found: " + sql);
             }
         }
-        Connection connection = connectionForWriting();
+        Connection connection = connectionForReading();
         if (connection == null) {
             throw new SQLException("can't connect to source " + url);
         }
@@ -389,16 +389,13 @@ public class SimpleRiverSource implements RiverSource {
         statement.setFetchSize(context.fetchSize());
         ResultSet set = statement.executeQuery();
         
-        if(writeConnection == null) { 
-        	writeConnection = connectionForWriting();
-        	if (writeConnection == null) {
+        if(readConnection == null) { 
+        	readConnection = connectionForReading();
+        	if (readConnection == null) {
                 throw new SQLException("can't connect to source " + url);
             }
         }
         
-        if (!writeConnection.getAutoCommit()) {
-            writeConnection.commit();
-        }
         return set;
     }
 
