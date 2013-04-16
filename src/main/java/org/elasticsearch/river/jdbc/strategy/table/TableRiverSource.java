@@ -25,6 +25,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -114,6 +115,7 @@ public class TableRiverSource extends SimpleRiverSource {
         }
         return null;
     }
+
     /**
      * Acknowledge a bulk item response back to the river table. Fill columns
      * target_timestamp, taget_operation, target_failed, target_message.
@@ -123,8 +125,10 @@ public class TableRiverSource extends SimpleRiverSource {
      */
     @Override
     public SimpleRiverSource acknowledge(BulkResponse response) throws IOException {
+        String riverName = context.riverName();
+
         if (response == null) {
-            logger.warn("can't acknowledge null bulk response");
+            logger.warn("({}) can't acknowledge null bulk response", riverName);
         }
         
         // if acknowlegde is disabled return current. 
@@ -133,10 +137,15 @@ public class TableRiverSource extends SimpleRiverSource {
         }
         
         try {
-            String riverName = context.riverName();
+            int nils = 0;
             for (BulkItemResponse resp : response.items()) {
-                PreparedStatement pstmt = null;
-                List<Object> params = new ArrayList();
+                if (resp == null) {
+                    nils++;
+                    continue;
+                }
+
+                PreparedStatement pstmt;
+                List<Object> params;
                 
                 try {
                     pstmt = prepareUpdate("insert into \""+riverName+"_ack\" (\"_index\",\"_type\",\"_id\","+
@@ -153,17 +162,21 @@ public class TableRiverSource extends SimpleRiverSource {
                         		"target_timestamp,target_operation,target_failed,target_message) values (?,?,?,?,?,?,?)");
                     }
                 }
-                params = new ArrayList();
+                params = new ArrayList<Object>();
                 params.add(resp.getIndex());
                 params.add(resp.getType());
                 params.add(resp.getId());
-                params.add(new Timestamp(new java.util.Date().getTime()));
+                params.add(new Timestamp(new Date().getTime()));
                 params.add(resp.opType());
                 params.add(resp.isFailed());
                 params.add(resp.getFailureMessage());
                 bind(pstmt, params);
                 executeUpdate(pstmt);
                 close(pstmt);
+            }
+
+            if (nils > 0) {
+                logger.info("({}) Skipped {} of {} 'null' BulkItemResponses", riverName, nils, response.items().length);
             }
         } catch (SQLException ex) {
             throw new IOException(ex);

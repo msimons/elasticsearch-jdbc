@@ -81,8 +81,8 @@ public class SimpleRiverMouth implements RiverMouth {
         @Override
         public void beforeBulk(long executionId, BulkRequest request) {
             long l = outstandingBulkRequests.incrementAndGet();
-            logger.info("new bulk [{}] of [{} items], {} outstanding bulk requests",
-                    executionId, request.numberOfActions(), l);
+            logger.info("({}) new bulk [{}] of [{} items], {} outstanding bulk requests",
+                    context.riverName(), executionId, request.numberOfActions(), l);
         }
 
         @Override
@@ -91,19 +91,19 @@ public class SimpleRiverMouth implements RiverMouth {
 	        	try {
 					context.riverSource().acknowledge(response);
 				} catch (IOException e) {
-					logger.error("bulk ["+executionId+"] acknowledge error", e);
+					logger.error("("+context.riverName()+") bulk ["+executionId+"] acknowledge error", e);
 				}
             }
         	outstandingBulkRequests.decrementAndGet();
-            logger.info("bulk [{}] success [{} items] [{}ms]",
-                    executionId, response.items().length, response.getTook().millis());
+            logger.info("({}) bulk [{}] success [{} items] [{}ms]",
+                    context.riverName(), executionId, response.items().length, response.getTook().millis());
             
         }
 
         @Override
         public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
             outstandingBulkRequests.decrementAndGet();
-            logger.error("bulk [" + executionId + "] error", failure);
+            logger.error("(" + context.riverName() + ") bulk [" + executionId + "] error", failure);
             error = true;
         }
     };

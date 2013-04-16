@@ -158,10 +158,10 @@ public class SimpleRiverSource implements RiverSource {
             cond = cond || !readConnection.isValid(5);
         } catch (AbstractMethodError e) {
             // old/buggy JDBC driver
-            logger.debug(e.getMessage());
+            logger.debug("({}) {}", context.riverName(), e.getMessage());
         } catch (SQLFeatureNotSupportedException e) {
             // postgresql does not support isValid()
-            logger.debug(e.getMessage());
+            logger.debug("({}) {}", context.riverName(), e.getMessage());
         }
         if (cond) {
             int retries = context != null ? context.retries() : 1;
@@ -181,7 +181,7 @@ public class SimpleRiverSource implements RiverSource {
                     }
                     return readConnection;
                 } catch (SQLException e) {
-                    logger.error("while opening read connection: " + url + " " + e.getMessage(), e);
+                    logger.error("(" + context.riverName() + ") while opening read connection: " + url + " " + e.getMessage(), e);
                     try {
                         Thread.sleep(context != null ? context.maxRetryWait().millis() : 1000L);
                     } catch (InterruptedException ex) {
@@ -223,7 +223,7 @@ public class SimpleRiverSource implements RiverSource {
                 } catch (SQLNonTransientConnectionException e) {
                     // ignore derby drop=true
                 } catch (SQLException e) {
-                    logger.error("while opening write connection: " + url + " " + e.getMessage(), e);
+                    logger.error("(" + context.riverName() + ") while opening write connection: " + url + " " + e.getMessage(), e);
                         try {
                             Thread.sleep(context != null ? context.maxRetryWait().millis() : 1000L);
                         } catch (InterruptedException ex) {
@@ -281,7 +281,7 @@ public class SimpleRiverSource implements RiverSource {
             rows++;
         }
         if (rows > 0) {
-            logger.info("merged {} rows", rows);
+            logger.info("({}) merged {} rows", context.riverName(), rows);
         }
         listener.reset();
         return context.digesting() && listener.digest() != null
