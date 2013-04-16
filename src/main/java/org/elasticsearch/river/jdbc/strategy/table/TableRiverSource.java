@@ -64,18 +64,25 @@ public class TableRiverSource extends SimpleRiverSource {
             try {
             	if(acknowledge()) {
             		logger.trace("fetching all riveritems with source_operation {}", optype);
-            		statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ?");
+            		statement = connection.prepareStatement(
+                        "select * from \"" + context.riverName() + "\" where \"source_operation\" = ? order by \"source_timestamp\"");
             	} else {
             		logger.trace("fetching all riveritems with source_operation {} and source_timestamp between {} and {} ", timestampFrom,timestampNow);
-            		statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            		statement = connection.prepareStatement(
+                        "select * from \"" + context.riverName() + "\" where \"source_operation\" = ? and \"source_timestamp\" between ? and ? order by \"source_timestamp\""
+                    );
             	}
 
             } catch (SQLException e) {
                 // hsqldb
             	if(acknowledge()){
-            		statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ?");
+            		statement = connection.prepareStatement(
+                        "select * from " + context.riverName() + " where \"source_operation\" = ? order by \"source_timestamp\""
+                    );
             	} else {
-            		statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
+            		statement = connection.prepareStatement(
+                        "select * from " + context.riverName() + " where \"source_operation\" = ? and \"source_timestamp\" between ? and ? order by \"source_timestamp\""
+                    );
             	}
             }
             statement.setString(1, optype);
@@ -89,9 +96,11 @@ public class TableRiverSource extends SimpleRiverSource {
             } catch (SQLException e) {
                 // mysql
             	if(acknowledge()) {
-            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ?");
+            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ? order by source_timestamp");
             	} else {
-            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ? and source_timestamp between ? and ?");
+            		statement = connection.prepareStatement(
+                        "select * from " + context.riverName() + " where source_operation = ? and source_timestamp between ? and ? order by source_timestamp"
+                    );
             	}
 
                 statement.setString(1, optype);
@@ -137,13 +146,7 @@ public class TableRiverSource extends SimpleRiverSource {
         }
         
         try {
-            int nils = 0;
             for (BulkItemResponse resp : response.items()) {
-                if (resp == null) {
-                    nils++;
-                    continue;
-                }
-
                 PreparedStatement pstmt;
                 List<Object> params;
                 
@@ -173,10 +176,6 @@ public class TableRiverSource extends SimpleRiverSource {
                 bind(pstmt, params);
                 executeUpdate(pstmt);
                 close(pstmt);
-            }
-
-            if (nils > 0) {
-                logger.info("({}) Skipped {} of {} 'null' BulkItemResponses", riverName, nils, response.items().length);
             }
         } catch (SQLException ex) {
             throw new IOException(ex);
