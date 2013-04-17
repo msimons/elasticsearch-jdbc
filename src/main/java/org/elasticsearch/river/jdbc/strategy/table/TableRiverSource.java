@@ -34,7 +34,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.river.jdbc.strategy.simple.SimpleRiverSource;
 import org.elasticsearch.river.jdbc.support.Operations;
-import org.elasticsearch.common.joda.time.DateTime;
 
 /**
  * River source implementation of the 'table' strategy
@@ -45,7 +44,7 @@ public class TableRiverSource extends SimpleRiverSource {
 
     private final ESLogger logger = ESLoggerFactory.getLogger(TableRiverSource.class.getName());
 
-    private DateTime lastSourceTimestamp = null;
+    private Long lastSequence = null;
 
     @Override
     public String strategy() {
@@ -76,15 +75,14 @@ public class TableRiverSource extends SimpleRiverSource {
             }
             statement.setString(1, optype);
             if (!acknowledge()) {
-                logger.trace("Fetching all riveritems with source_timestamp between {} and {} ", timestampFrom, timestampNow);
+                logger.trace("({}) Fetching riveritems with source_timestamp between {} and {} ", context.riverName(), timestampFrom, timestampNow);
                 statement.setTimestamp(2, timestampFrom);
 	            statement.setTimestamp(3, timestampNow);
-            } else if (lastSourceTimestamp != null) {
-                Timestamp ts = new Timestamp(lastSourceTimestamp.toDate().getTime());
-                logger.trace("Fetching all riveritems having source_timestamp > {}", ts);
-                statement.setTimestamp(2, ts);
+            } else if (lastSequence != null) {
+                logger.trace("({}) Fetching riveritems having _seq > {}", context.riverName(), lastSequence);
+                statement.setLong(2, lastSequence);
             } else {
-                logger.trace("Fetching all riveritems (lastSourceTimestamp==null)");
+                logger.trace("({}) Fetching all riveritems (lastSequence==null)", context.riverName());
             }
 
             ResultSet results;
@@ -98,20 +96,20 @@ public class TableRiverSource extends SimpleRiverSource {
                 if (!acknowledge()) {
 	                statement.setTimestamp(2, timestampFrom);
 	                statement.setTimestamp(3, timestampNow);
-                } else if (lastSourceTimestamp != null) {
-                    statement.setTimestamp(2, new Timestamp(lastSourceTimestamp.toDate().getTime()));
+                } else if (lastSequence != null) {
+                    statement.setLong(2, lastSequence);
                 }
                 results = executeQuery(statement);
             }
 
             try {
                 TableValueListener listener = new TableValueListener();
-                listener.setHighSourceTimestamp(lastSourceTimestamp);
+                listener.setHighestSequence(lastSequence);
                 listener.target(context.riverMouth()).digest(context.digesting());
                 merge(results, listener); // ignore digest
 
-                //Update sourcetimestamp for next run
-                lastSourceTimestamp = listener.getHighSourceTimestamp();
+                //Update sequence for next run
+                lastSequence = listener.getHighestSequence();
             } catch (Exception e) {
                 throw new IOException(e);
             }
@@ -126,17 +124,15 @@ public class TableRiverSource extends SimpleRiverSource {
         String sql;
         if (acknowledge()) {
 
-            if (lastSourceTimestamp == null) {
+            if (lastSequence == null) {
                 sql = String.format(
-                    "select * from %s%s%s where %ssource_operation%s = ? order by %ssource_timestamp%s",
+                    "select * from %s%s%s where %ssource_operation%s = ? order by %s_seq%s",
                     tableQuote, context.riverName(), tableQuote,
                     fieldQuote, fieldQuote, fieldQuote, fieldQuote
                 );
             } else {
                 sql = String.format(
-                    "select * from %s%s%s where %ssource_operation%s = ? " +
-                    "and to_timestamp(substr(to_char(%ssource_timestamp%s, 'YYYYMMDD HH24:MI:SS.FF'), 0, 21), 'YYYYMMDD HH24:MI:SS.FF') > ? " +
-                    "order by %ssource_timestamp%s",
+                    "select * from %s%s%s where %ssource_operation%s = ? and %s_seq%s > ? order by %s_seq%s",
                     tableQuote, context.riverName(), tableQuote,
                     fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote
                 );
@@ -150,13 +146,13 @@ public class TableRiverSource extends SimpleRiverSource {
             );
         }
 
-        logger.trace("Created query: {}", sql);
+        logger.trace("({}) Created query: {}", context.riverName(), sql);
         return connection.prepareStatement(sql);
     }
 
     /**
      * Acknowledge a bulk item response back to the river table. Fill columns
-     * target_timestamp, taget_operation, target_failed, target_message.
+     * target_timestamp, target_operation, target_failed, target_message.
      *
      * @param response
      * @throws IOException
@@ -167,10 +163,11 @@ public class TableRiverSource extends SimpleRiverSource {
 
         if (response == null) {
             logger.warn("({}) can't acknowledge null bulk response", riverName);
+            return this;
         }
         
         // if acknowlegde is disabled return current. 
-        if(!acknowledge()){
+        if (!acknowledge()) {
         	return this;
         }
         
