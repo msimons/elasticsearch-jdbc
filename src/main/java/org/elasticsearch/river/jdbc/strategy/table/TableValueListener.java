@@ -21,8 +21,13 @@ package org.elasticsearch.river.jdbc.strategy.table;
 import java.io.IOException;
 import java.util.Map;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.river.jdbc.strategy.simple.SimpleValueListener;
 import org.elasticsearch.river.jdbc.support.StructuredObject;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.format.DateTimeFormat;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 
 /**
  * Value listener for the 'table' strategy
@@ -31,13 +36,17 @@ import org.elasticsearch.river.jdbc.support.StructuredObject;
  */
 public class TableValueListener extends SimpleValueListener {
 
-	public static final String SOURCE_OPERATION = "source_operation";
-	public static final String SOURCE_TIMESTAMP = "source_timestamp";
-	
-	@Override
-	protected void map(String k, String v, StructuredObject current)
-			throws IOException {
-		if(SOURCE_OPERATION.equals(k)) { 
+	private static final String SOURCE_OPERATION = "source_operation";
+    private static final String SOURCE_TIMESTAMP = "source_timestamp";
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+
+    private final ESLogger logger = ESLoggerFactory.getLogger(TableValueListener.class.getName());
+
+    private DateTime highSourceTimestamp;
+
+    @Override
+	protected void map(String k, String v, StructuredObject current) throws IOException {
+		if (SOURCE_OPERATION.equals(k)) {
 			current.optype(v);
 		} else { 
 			super.map(k, v, current);
@@ -46,16 +55,40 @@ public class TableValueListener extends SimpleValueListener {
 
 	@Override
 	protected Map merge(Map map, String key, Object value) {
-		if(SOURCE_OPERATION.equals(key)
-				|| SOURCE_TIMESTAMP.equals(key)) { 
-			// skip elements in content
-			return map;
+        // skip elements in content
+		if (SOURCE_OPERATION.equals(key)) {
+            return map;
+        } else if (SOURCE_TIMESTAMP.equals(key)) {
+            if (value != null) {
+                //Timestamp retrieved as String: 2013-04-17T13:15:28.945Z
+                DateTime curTimestamp = DATE_FORMAT.parseDateTime(value.toString());
+
+                logger.trace("source_timestamp parsed to {}", curTimestamp);
+                if (highSourceTimestamp == null || curTimestamp.isAfter(highSourceTimestamp)) {
+                    logger.debug("Setting source_timestamp as highest value: {}", curTimestamp);
+                    highSourceTimestamp = curTimestamp;
+                }
+            }
+            return map;
 		} 
 		
 		return super.merge(map, key, value);
 	}
-	
-	
 
-	
+    /**
+     * @return The highest source timestamp processed by this listener.
+     */
+    public DateTime getHighSourceTimestamp() {
+        return highSourceTimestamp;
+    }
+
+    /**
+     * Set the highest source timestamp.
+     */
+    public void setHighSourceTimestamp(DateTime highSourceTimestamp) {
+        this.highSourceTimestamp = highSourceTimestamp;
+    }
+
+
+
 }

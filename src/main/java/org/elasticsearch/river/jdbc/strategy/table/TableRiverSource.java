@@ -34,7 +34,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.river.jdbc.strategy.simple.SimpleRiverSource;
 import org.elasticsearch.river.jdbc.support.Operations;
-import org.elasticsearch.river.jdbc.support.ValueListener;
+import org.elasticsearch.common.joda.time.DateTime;
 
 /**
  * River source implementation of the 'table' strategy
@@ -45,6 +45,8 @@ public class TableRiverSource extends SimpleRiverSource {
 
     private final ESLogger logger = ESLoggerFactory.getLogger(TableRiverSource.class.getName());
 
+    private DateTime lastSourceTimestamp = null;
+
     @Override
     public String strategy() {
         return "table";
@@ -53,7 +55,7 @@ public class TableRiverSource extends SimpleRiverSource {
     @Override
     public String fetch() throws SQLException, IOException {
         Connection connection = connectionForReading();
-        String[] optypes = new String[]{Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE, Operations.OP_UPDATE};
+        String[] optypes = { Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE, Operations.OP_UPDATE };
 
         long now = System.currentTimeMillis();
         Timestamp timestampFrom = new Timestamp(now - context.pollingInterval().millis());
@@ -62,59 +64,54 @@ public class TableRiverSource extends SimpleRiverSource {
         for (String optype : optypes) {
             PreparedStatement statement;
             try {
-            	if(acknowledge()) {
-            		logger.trace("fetching all riveritems with source_operation {}", optype);
-            		statement = connection.prepareStatement(
-                        "select * from \"" + context.riverName() + "\" where \"source_operation\" = ? order by \"source_timestamp\"");
-            	} else {
-            		logger.trace("fetching all riveritems with source_operation {} and source_timestamp between {} and {} ", timestampFrom,timestampNow);
-            		statement = connection.prepareStatement(
-                        "select * from \"" + context.riverName() + "\" where \"source_operation\" = ? and \"source_timestamp\" between ? and ? order by \"source_timestamp\""
-                    );
-            	}
-
+                statement = getQuery(connection, "\"", "\"");
             } catch (SQLException e) {
-                // hsqldb
-            	if(acknowledge()){
-            		statement = connection.prepareStatement(
-                        "select * from " + context.riverName() + " where \"source_operation\" = ? order by \"source_timestamp\""
-                    );
-            	} else {
-            		statement = connection.prepareStatement(
-                        "select * from " + context.riverName() + " where \"source_operation\" = ? and \"source_timestamp\" between ? and ? order by \"source_timestamp\""
-                    );
-            	}
+                try {
+                    // hsqldb
+                    statement = getQuery(connection, "", "\"");
+                } catch (SQLException e2) {
+                    logger.warn("Exception for both default and HSQLDB query", e2);
+                    throw e;
+                }
             }
             statement.setString(1, optype);
-            if(!acknowledge()){
-	            statement.setTimestamp(2, timestampFrom);
+            if (!acknowledge()) {
+                logger.trace("Fetching all riveritems with source_timestamp between {} and {} ", timestampFrom, timestampNow);
+                statement.setTimestamp(2, timestampFrom);
 	            statement.setTimestamp(3, timestampNow);
+            } else if (lastSourceTimestamp != null) {
+                Timestamp ts = new Timestamp(lastSourceTimestamp.toDate().getTime());
+                logger.trace("Fetching all riveritems having source_timestamp > {}", ts);
+                statement.setTimestamp(2, ts);
+            } else {
+                logger.trace("Fetching all riveritems (lastSourceTimestamp==null)");
             }
+
             ResultSet results;
             try {
                 results = executeQuery(statement);
             } catch (SQLException e) {
                 // mysql
-            	if(acknowledge()) {
-            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ? order by source_timestamp");
-            	} else {
-            		statement = connection.prepareStatement(
-                        "select * from " + context.riverName() + " where source_operation = ? and source_timestamp between ? and ? order by source_timestamp"
-                    );
-            	}
+                statement = getQuery(connection, "", "");
 
                 statement.setString(1, optype);
-                if(!acknowledge()){
+                if (!acknowledge()) {
 	                statement.setTimestamp(2, timestampFrom);
 	                statement.setTimestamp(3, timestampNow);
+                } else if (lastSourceTimestamp != null) {
+                    statement.setTimestamp(2, new Timestamp(lastSourceTimestamp.toDate().getTime()));
                 }
                 results = executeQuery(statement);
             }
+
             try {
-                ValueListener listener = new TableValueListener()
-                        .target(context.riverMouth())
-                        .digest(context.digesting());
+                TableValueListener listener = new TableValueListener();
+                listener.setHighSourceTimestamp(lastSourceTimestamp);
+                listener.target(context.riverMouth()).digest(context.digesting());
                 merge(results, listener); // ignore digest
+
+                //Update sourcetimestamp for next run
+                lastSourceTimestamp = listener.getHighSourceTimestamp();
             } catch (Exception e) {
                 throw new IOException(e);
             }
@@ -123,6 +120,38 @@ public class TableRiverSource extends SimpleRiverSource {
             sendAcknowledge();
         }
         return null;
+    }
+
+    private PreparedStatement getQuery(Connection connection, String tableQuote, String fieldQuote) throws SQLException {
+        String sql;
+        if (acknowledge()) {
+
+            if (lastSourceTimestamp == null) {
+                sql = String.format(
+                    "select * from %s%s%s where %ssource_operation%s = ? order by %ssource_timestamp%s",
+                    tableQuote, context.riverName(), tableQuote,
+                    fieldQuote, fieldQuote, fieldQuote, fieldQuote
+                );
+            } else {
+                sql = String.format(
+                    "select * from %s%s%s where %ssource_operation%s = ? " +
+                    "and to_timestamp(substr(to_char(%ssource_timestamp%s, 'YYYYMMDD HH24:MI:SS.FF'), 0, 21), 'YYYYMMDD HH24:MI:SS.FF') > ? " +
+                    "order by %ssource_timestamp%s",
+                    tableQuote, context.riverName(), tableQuote,
+                    fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote
+                );
+            }
+
+        } else {
+            sql = String.format(
+                "select * from %s%s%s where %ssource_operation%s = ? and %ssource_timestamp%s between ? and ? order by %ssource_timestamp%s",
+                tableQuote, context.riverName(), tableQuote,
+                fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote
+            );
+        }
+
+        logger.trace("Created query: {}", sql);
+        return connection.prepareStatement(sql);
     }
 
     /**
