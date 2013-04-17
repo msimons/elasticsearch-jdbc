@@ -111,7 +111,7 @@ public class SimpleRiverFlow implements RiverFlow {
     public SimpleRiverFlow delay(String reason) {
         TimeValue poll = context.pollingInterval();
         if (poll.millis() > 0L) {
-            logger.info("{}, waiting {}", reason, poll);
+            logger.info("({}) {}, waiting {}", context.riverName(), reason, poll);
             try {
                 Thread.sleep(poll.millis());
             } catch (InterruptedException e) {
