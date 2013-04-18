@@ -25,6 +25,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.river.jdbc.strategy.simple.SimpleRiverSource;
 import org.elasticsearch.river.jdbc.support.Operations;
-import org.elasticsearch.river.jdbc.support.ValueListener;
 
 /**
  * River source implementation of the 'table' strategy
@@ -44,6 +44,8 @@ public class TableRiverSource extends SimpleRiverSource {
 
     private final ESLogger logger = ESLoggerFactory.getLogger(TableRiverSource.class.getName());
 
+    private Long lastSequence = null;
+
     @Override
     public String strategy() {
         return "table";
@@ -52,7 +54,7 @@ public class TableRiverSource extends SimpleRiverSource {
     @Override
     public String fetch() throws SQLException, IOException {
         Connection connection = connectionForReading();
-        String[] optypes = new String[]{Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE, Operations.OP_UPDATE};
+        String[] optypes = { Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE, Operations.OP_UPDATE };
 
         long now = System.currentTimeMillis();
         Timestamp timestampFrom = new Timestamp(now - context.pollingInterval().millis());
@@ -61,50 +63,53 @@ public class TableRiverSource extends SimpleRiverSource {
         for (String optype : optypes) {
             PreparedStatement statement;
             try {
-            	if(acknowledge()) {
-            		logger.trace("fetching all riveritems with source_operation {}", optype);
-            		statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ?");
-            	} else {
-            		logger.trace("fetching all riveritems with source_operation {} and source_timestamp between {} and {} ", timestampFrom,timestampNow);
-            		statement = connection.prepareStatement("select * from \"" + context.riverName() + "\" where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
-            	}
-
+                statement = getQuery(connection, "\"", "\"");
             } catch (SQLException e) {
-                // hsqldb
-            	if(acknowledge()){
-            		statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ?");
-            	} else {
-            		statement = connection.prepareStatement("select * from " + context.riverName() + " where \"source_operation\" = ? and \"source_timestamp\" between ? and ?");
-            	}
+                try {
+                    // hsqldb
+                    statement = getQuery(connection, "", "\"");
+                } catch (SQLException e2) {
+                    logger.warn("Exception for both default and HSQLDB query", e2);
+                    throw e;
+                }
             }
             statement.setString(1, optype);
-            if(!acknowledge()){
-	            statement.setTimestamp(2, timestampFrom);
+            if (!acknowledge()) {
+                logger.trace("({}) Fetching riveritems with source_timestamp between {} and {} ", context.riverName(), timestampFrom, timestampNow);
+                statement.setTimestamp(2, timestampFrom);
 	            statement.setTimestamp(3, timestampNow);
+            } else if (lastSequence != null) {
+                logger.trace("({}) Fetching riveritems having _seq > {}", context.riverName(), lastSequence);
+                statement.setLong(2, lastSequence);
+            } else {
+                logger.trace("({}) Fetching all riveritems (lastSequence==null)", context.riverName());
             }
+
             ResultSet results;
             try {
                 results = executeQuery(statement);
             } catch (SQLException e) {
                 // mysql
-            	if(acknowledge()) {
-            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ?");
-            	} else {
-            		statement = connection.prepareStatement("select * from " + context.riverName() + " where source_operation = ? and source_timestamp between ? and ?");
-            	}
+                statement = getQuery(connection, "", "");
 
                 statement.setString(1, optype);
-                if(!acknowledge()){
+                if (!acknowledge()) {
 	                statement.setTimestamp(2, timestampFrom);
 	                statement.setTimestamp(3, timestampNow);
+                } else if (lastSequence != null) {
+                    statement.setLong(2, lastSequence);
                 }
                 results = executeQuery(statement);
             }
+
             try {
-                ValueListener listener = new TableValueListener()
-                        .target(context.riverTarget())
-                        .digest(context.digesting());
+                TableValueListener listener = new TableValueListener();
+                listener.setHighestSequence(lastSequence);
+                listener.target(context.riverMouth()).digest(context.digesting());
                 merge(results, listener); // ignore digest
+
+                //Update sequence for next run
+                lastSequence = listener.getHighestSequence();
             } catch (Exception e) {
                 throw new IOException(e);
             }
@@ -114,29 +119,62 @@ public class TableRiverSource extends SimpleRiverSource {
         }
         return null;
     }
+
+    private PreparedStatement getQuery(Connection connection, String tableQuote, String fieldQuote) throws SQLException {
+        String sql;
+        if (acknowledge()) {
+
+            if (lastSequence == null) {
+                sql = String.format(
+                    "select * from %s%s%s where %ssource_operation%s = ? order by %s_seq%s",
+                    tableQuote, context.riverName(), tableQuote,
+                    fieldQuote, fieldQuote, fieldQuote, fieldQuote
+                );
+            } else {
+                sql = String.format(
+                    "select * from %s%s%s where %ssource_operation%s = ? and %s_seq%s > ? order by %s_seq%s",
+                    tableQuote, context.riverName(), tableQuote,
+                    fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote
+                );
+            }
+
+        } else {
+            sql = String.format(
+                "select * from %s%s%s where %ssource_operation%s = ? and %ssource_timestamp%s between ? and ? order by %ssource_timestamp%s",
+                tableQuote, context.riverName(), tableQuote,
+                fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote, fieldQuote
+            );
+        }
+
+        logger.trace("({}) Created query: {}", context.riverName(), sql);
+        return connection.prepareStatement(sql);
+    }
+
     /**
      * Acknowledge a bulk item response back to the river table. Fill columns
-     * target_timestamp, taget_operation, target_failed, target_message.
+     * target_timestamp, target_operation, target_failed, target_message.
      *
      * @param response
      * @throws IOException
      */
     @Override
     public SimpleRiverSource acknowledge(BulkResponse response) throws IOException {
+        String riverName = context.riverName();
+
         if (response == null) {
-            logger.warn("can't acknowledge null bulk response");
+            logger.warn("({}) can't acknowledge null bulk response", riverName);
+            return this;
         }
         
         // if acknowlegde is disabled return current. 
-        if(!acknowledge()){
+        if (!acknowledge()) {
         	return this;
         }
         
         try {
-            String riverName = context.riverName();
             for (BulkItemResponse resp : response.items()) {
-                PreparedStatement pstmt = null;
-                List<Object> params = new ArrayList();
+                PreparedStatement pstmt;
+                List<Object> params;
                 
                 try {
                     pstmt = prepareUpdate("insert into \""+riverName+"_ack\" (\"_index\",\"_type\",\"_id\","+
@@ -153,11 +191,11 @@ public class TableRiverSource extends SimpleRiverSource {
                         		"target_timestamp,target_operation,target_failed,target_message) values (?,?,?,?,?,?,?)");
                     }
                 }
-                params = new ArrayList();
+                params = new ArrayList<Object>();
                 params.add(resp.getIndex());
                 params.add(resp.getType());
                 params.add(resp.getId());
-                params.add(new Timestamp(new java.util.Date().getTime()));
+                params.add(new Timestamp(new Date().getTime()));
                 params.add(resp.opType());
                 params.add(resp.isFailed());
                 params.add(resp.getFailureMessage());

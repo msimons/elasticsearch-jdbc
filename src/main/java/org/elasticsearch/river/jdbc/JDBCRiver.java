@@ -106,7 +106,7 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
         sql = XContentMapValues.nodeStringValue(sourceSettings.get("sql"), null);
         sqlparams = XContentMapValues.extractRawValues("sqlparams", sourceSettings);
         rounding = XContentMapValues.nodeStringValue(sourceSettings.get("rounding"), null);
-        scale = XContentMapValues.nodeIntegerValue(sourceSettings.get("scale"), 0);
+        scale = XContentMapValues.nodeIntegerValue(sourceSettings.get("scale"), 2);
         autocommit = XContentMapValues.nodeBooleanValue(sourceSettings.get("autocommit"), Boolean.FALSE);
         fetchsize = url.startsWith("jdbc:mysql") ? Integer.MIN_VALUE :
                 XContentMapValues.nodeIntegerValue(sourceSettings.get("fetchsize"), 10);
@@ -142,7 +142,7 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
                 .precision(scale);
 
         riverMouth = RiverServiceLoader.findRiverMouth(strategy);
-        logger.debug("found river target {} for strategy {}", riverMouth.getClass().getName(), strategy);
+        logger.debug("found river mouth {} for strategy {}", riverMouth.getClass().getName(), strategy);
         riverMouth.index(indexName)
                 .type(typeName)
                 .maxBulkActions(bulkSize)
@@ -158,7 +158,7 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
                 .riverIndexName(riverIndexName)
                 .riverSettings(riverSettings.settings())
                 .riverSource(riverSource)
-                .riverTarget(riverMouth)
+                .riverMouth(riverMouth)
                 .pollInterval(poll)
                 .pollStatement(sql)
                 .pollStatementParams(sqlparams)
@@ -177,7 +177,7 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
         // prepare task for run
         riverFlow.riverContext(riverContext);
 
-        logger.debug("found river task {} for strategy {}", riverFlow.getClass().getName(), strategy);
+        logger.debug("found river flow {} for strategy {}", riverFlow.getClass().getName(), strategy);
     }
 
     @Override

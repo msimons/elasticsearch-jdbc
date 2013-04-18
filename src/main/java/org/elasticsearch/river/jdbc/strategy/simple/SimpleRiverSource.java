@@ -38,6 +38,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLXML;
+import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -157,10 +158,10 @@ public class SimpleRiverSource implements RiverSource {
             cond = cond || !readConnection.isValid(5);
         } catch (AbstractMethodError e) {
             // old/buggy JDBC driver
-            logger.debug(e.getMessage());
+            logger.debug("({}) {}", context.riverName(), e.getMessage());
         } catch (SQLFeatureNotSupportedException e) {
             // postgresql does not support isValid()
-            logger.debug(e.getMessage());
+            logger.debug("({}) {}", context.riverName(), e.getMessage());
         }
         if (cond) {
             int retries = context != null ? context.retries() : 1;
@@ -170,15 +171,17 @@ public class SimpleRiverSource implements RiverSource {
                     readConnection = DriverManager.getConnection(url, user, password);
                     // required by MySQL for large result streaming
                     readConnection.setReadOnly(true);
-                    // Postgresql needs this holdability
-                    readConnection.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);
+                    // Postgresql cursor mode condition:
+                    // fetchsize > 0, no scrollable result set, no auto commit, no holdable cursors over commit
+                    // https://github.com/pgjdbc/pgjdbc/blob/master/org/postgresql/jdbc2/AbstractJdbc2Statement.java#L514
+                    //readConnection.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);
                     if (context != null) {
                         // many drivers don't like autocommit=true
                         readConnection.setAutoCommit(context.autocommit());
                     }
                     return readConnection;
                 } catch (SQLException e) {
-                    logger.error("while opening read connection: " + url + " " + e.getMessage(), e);
+                    logger.error("(" + context.riverName() + ") while opening read connection: " + url + " " + e.getMessage(), e);
                     try {
                         Thread.sleep(context != null ? context.maxRetryWait().millis() : 1000L);
                     } catch (InterruptedException ex) {
@@ -220,7 +223,7 @@ public class SimpleRiverSource implements RiverSource {
                 } catch (SQLNonTransientConnectionException e) {
                     // ignore derby drop=true
                 } catch (SQLException e) {
-                    logger.error("while opening write connection: " + url + " " + e.getMessage(), e);
+                    logger.error("(" + context.riverName() + ") while opening write connection: " + url + " " + e.getMessage(), e);
                         try {
                             Thread.sleep(context != null ? context.maxRetryWait().millis() : 1000L);
                         } catch (InterruptedException ex) {
@@ -234,13 +237,20 @@ public class SimpleRiverSource implements RiverSource {
 
     @Override
     public String fetch() throws SQLException, IOException {
-        PreparedStatement statement = prepareQuery(context.pollStatement());
-        bind(statement, context.pollStatementParams());
-        ResultSet results = executeQuery(statement);
+        PreparedStatement statement = null;
+        ResultSet results;
+        if (context.pollStatementParams().isEmpty()) {
+            // Postgresql requires executeQuery(sql) for cursor with fetchsize
+            results = executeQuery(context.pollStatement());
+        } else {
+            statement = prepareQuery(context.pollStatement());
+            bind(statement, context.pollStatementParams());
+            results = executeQuery(statement);
+        }
         String mergeDigest;
         try {
             ValueListener listener = new SimpleValueListener()
-                    .target(context.riverTarget())
+                    .target(context.riverMouth())
                     .digest(context.digesting());
             mergeDigest = merge(results, listener);
         } catch (Exception e) {
@@ -271,7 +281,7 @@ public class SimpleRiverSource implements RiverSource {
             rows++;
         }
         if (rows > 0) {
-            logger.info("merged {} rows", rows);
+            logger.info("({}) merged {} rows", context.riverName(), rows);
         }
         listener.reset();
         return context.digesting() && listener.digest() != null
@@ -327,6 +337,7 @@ public class SimpleRiverSource implements RiverSource {
         if (connection == null) {
             throw new SQLException("can't connect to source " + url);
         }
+        logger.debug("preparing statement with SQL {}", sql);
         return connection.prepareStatement(sql,
                 ResultSet.TYPE_FORWARD_ONLY,
                 ResultSet.CONCUR_READ_ONLY);
@@ -387,8 +398,9 @@ public class SimpleRiverSource implements RiverSource {
     public ResultSet executeQuery(PreparedStatement statement) throws SQLException {
         statement.setMaxRows(context.maxRows());
         statement.setFetchSize(context.fetchSize());
+        logger.debug("executing prepared statement");
         ResultSet set = statement.executeQuery();
-        
+
         if(readConnection == null) { 
         	readConnection = connectionForReading();
         	if (readConnection == null) {
@@ -398,6 +410,24 @@ public class SimpleRiverSource implements RiverSource {
         
         return set;
     }
+
+    /**
+     * Execute query statement
+     *
+     * @param sql
+     * @return
+     * @throws SQLException
+     */
+    @Override
+    public ResultSet executeQuery(String sql) throws SQLException {
+        Statement statement = connectionForReading().createStatement();
+        statement.setMaxRows(context.maxRows());
+        statement.setFetchSize(context.fetchSize());
+        logger.debug("executing SQL {}", sql);
+        ResultSet set = statement.executeQuery(sql);
+        return set;
+    }
+
 
     /**
      * Execute prepared update statement
@@ -474,7 +504,9 @@ public class SimpleRiverSource implements RiverSource {
      */
     @Override
     public SimpleRiverSource close(ResultSet result) throws SQLException {
-        result.close();
+        if (result != null) {
+            result.close();
+        }
         return this;
     }
 
@@ -486,7 +518,9 @@ public class SimpleRiverSource implements RiverSource {
      */
     @Override
     public SimpleRiverSource close(PreparedStatement statement) throws SQLException {
-        statement.close();
+        if (statement != null) {
+            statement.close();
+        }
         return this;
     }
 
@@ -689,6 +723,7 @@ public class SimpleRiverSource implements RiverSource {
         if (logger.isTraceEnabled()) {
             logger.trace("{} {} {}", i, type, result.getString(i));
         }
+
         switch (type) {
             /**
              * The JDBC types CHAR, VARCHAR, and LONGVARCHAR are closely
@@ -746,7 +781,8 @@ public class SimpleRiverSource implements RiverSource {
              * long.
              */
             case Types.BIGINT: {
-                return result.getLong(i);
+                Object o = result.getLong(i);
+                return result.wasNull() ? null : o;
             }
             /**
              * The JDBC type BIT represents a single bit value that can be zero
@@ -763,7 +799,16 @@ public class SimpleRiverSource implements RiverSource {
              * to use the JDBC SMALLINT type, which is widely supported.
              */
             case Types.BIT: {
-                return result.getInt(i);
+                try {
+                    Object o = result.getInt(i);
+                    return result.wasNull() ? null : o;
+                } catch (Exception e) {
+                    // PSQLException: Bad value for type int : t
+                    if (e.getMessage().startsWith("Bad value for type int")) {
+                        return "t".equals(result.getString(i));
+                    }
+                    throw new IOException(e);
+                }
             }
             /**
              * The JDBC type BOOLEAN, which is new in the JDBC 3.0 API, maps to
@@ -944,7 +989,7 @@ public class SimpleRiverSource implements RiverSource {
                     // Null values are driving us nuts in JDBC:
                     // http://stackoverflow.com/questions/2777214/when-accessing-resultsets-in-jdbc-is-there-an-elegant-way-to-distinguish-betwee
                 }
-                if (bd == null) {
+                if (bd == null || result.wasNull()) {
                     return null;
                 }
                 if (scale >= 0) {
@@ -979,8 +1024,10 @@ public class SimpleRiverSource implements RiverSource {
              * double.
              */
             case Types.DOUBLE: {
-                //return result.getDouble(i);
                 String s = result.getString(i);
+                if (result.wasNull()) {
+                    return null;
+                }
                 NumberFormat format = NumberFormat.getInstance(locale);
                 Number number = format.parse(s);
                 return number.doubleValue();
@@ -1004,8 +1051,10 @@ public class SimpleRiverSource implements RiverSource {
              * DOUBLE type in preference to FLOAT.
              */
             case Types.FLOAT: {
-                //return result.getDouble(i);
                 String s = result.getString(i);
+                if (result.wasNull()) {
+                    return null;
+                }
                 NumberFormat format = NumberFormat.getInstance(locale);
                 Number number = format.parse(s);
                 return number.doubleValue();
@@ -1023,7 +1072,8 @@ public class SimpleRiverSource implements RiverSource {
              * int.
              */
             case Types.INTEGER: {
-                return result.getInt(i);
+                Object o = result.getInt(i);
+                return result.wasNull() ? null : o;
             }
             /**
              * The JDBC type JAVA_OBJECT, added in the JDBC 2.0 core API, makes
@@ -1064,8 +1114,10 @@ public class SimpleRiverSource implements RiverSource {
              * float.
              */
             case Types.REAL: {
-                //return result.getFloat(i);
                 String s = result.getString(i);
+                if (result.wasNull()) {
+                    return null;
+                }
                 NumberFormat format = NumberFormat.getInstance(locale);
                 Number number = format.parse(s);
                 return number.doubleValue();
@@ -1083,7 +1135,8 @@ public class SimpleRiverSource implements RiverSource {
              * Java short.
              */
             case Types.SMALLINT: {
-                return result.getInt(i);
+                Object o = result.getInt(i);
+                return result.wasNull() ? null : o;
             }
             case Types.SQLXML: {
             	if((result instanceof OracleResultSet)){
@@ -1131,7 +1184,8 @@ public class SimpleRiverSource implements RiverSource {
              * short will always be able to hold all TINYINT values.
              */
             case Types.TINYINT: {
-                return result.getInt(i);
+                Object o = result.getInt(i);
+                return result.wasNull() ? null : o;
             }
             case Types.NULL: {
                 return null;

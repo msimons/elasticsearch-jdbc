@@ -19,7 +19,7 @@
 package org.elasticsearch.river.jdbc.strategy.simple;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.river.jdbc.RiverMouth;
 import org.elasticsearch.river.jdbc.RiverSource;
 import org.elasticsearch.river.jdbc.strategy.mock.MockRiverMouth;
@@ -37,11 +37,18 @@ import java.util.List;
 
 public class SimpleRiverSourceDataTests extends AbstractRiverTest {
 
-    private final ESLogger logger = ESLoggerFactory.getLogger(SimpleRiverSourceDataTests.class.getName());
+    private static final ESLogger logger = Loggers.getLogger(SimpleRiverSourceDataTests.class);
 
     @Override
     public RiverSource getRiverSource() {
         return new SimpleRiverSource();
+    }
+
+    @Override
+    public RiverContext getRiverContext() {
+        RiverContext context = new RiverContext();
+        context.digesting(true);
+        return context;
     }
 
     @Test
@@ -52,7 +59,7 @@ public class SimpleRiverSourceDataTests extends AbstractRiverTest {
             RiverMouth target = new MockRiverMouth() {
                 @Override
                 public void index(StructuredObject object) throws IOException {
-                    logger.debug("sql1={}", object);
+                    logger.debug("sql1 object={}", object);
                 }
             };
             PreparedStatement statement = source.prepareQuery(sql);
@@ -80,7 +87,7 @@ public class SimpleRiverSourceDataTests extends AbstractRiverTest {
         RiverMouth target = new MockRiverMouth() {
             @Override
             public void index(StructuredObject object) throws IOException {
-                logger.debug("sql2={}", object);
+                logger.debug("sql2 object={}", object);
             }
         };
         PreparedStatement statement = source.prepareQuery(sql);

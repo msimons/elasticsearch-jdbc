@@ -19,12 +19,11 @@
 package org.elasticsearch.river.jdbc.strategy.simple;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
 import org.elasticsearch.river.jdbc.JDBCRiver;
 import org.elasticsearch.river.jdbc.RiverSource;
+import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
@@ -37,12 +36,18 @@ import java.util.UUID;
 
 public class SimpleRiverMouthDataTests extends AbstractRiverNodeTest {
 
-    private final ESLogger logger = ESLoggerFactory.getLogger(SimpleRiverMouthDataTests.class.getName());
     private Client client;
 
     @Override
     public RiverSource getRiverSource() {
         return new SimpleRiverSource();
+    }
+
+    @Override
+    public RiverContext getRiverContext() {
+        RiverContext context = new RiverContext();
+        context.digesting(true);
+        return context;
     }
 
     /**
@@ -63,7 +68,7 @@ public class SimpleRiverMouthDataTests extends AbstractRiverNodeTest {
         JDBCRiver river = new JDBCRiver(new RiverName(INDEX, TYPE), settings, "_river", client);
         river.start();
         Thread.sleep(3000L); // let the good things happen
-        assertEquals(client.prepareSearch(INDEX).execute().actionGet().getHits().getTotalHits(), 103);
+        assertEquals(client.prepareSearch(INDEX).execute().actionGet().getHits().getTotalHits(), 104);
         river.close();
     }
 
@@ -87,7 +92,7 @@ public class SimpleRiverMouthDataTests extends AbstractRiverNodeTest {
         Thread.sleep(3000L); // let some good things happen
         river.once();
         Thread.sleep(3000L); // let other good things happen
-        assertEquals(client.prepareSearch(INDEX).execute().actionGet().getHits().getTotalHits(), 206);
+        assertEquals(client.prepareSearch(INDEX).execute().actionGet().getHits().getTotalHits(), 208);
         river.close();
     }
 
