@@ -21,6 +21,8 @@ package org.elasticsearch.river.jdbc.strategy.table;
 import java.io.IOException;
 import java.util.Map;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.river.jdbc.strategy.simple.SimpleValueListener;
 import org.elasticsearch.river.jdbc.support.StructuredObject;
 
@@ -31,13 +33,17 @@ import org.elasticsearch.river.jdbc.support.StructuredObject;
  */
 public class TableValueListener extends SimpleValueListener {
 
-	public static final String SOURCE_OPERATION = "source_operation";
-	public static final String SOURCE_TIMESTAMP = "source_timestamp";
-	
-	@Override
-	protected void map(String k, String v, StructuredObject current)
-			throws IOException {
-		if(SOURCE_OPERATION.equals(k)) { 
+	private static final String SOURCE_OPERATION = "source_operation";
+    private static final String SOURCE_TIMESTAMP = "source_timestamp";
+    private static final String SEQUENCE = "_seq";
+
+    private final ESLogger logger = ESLoggerFactory.getLogger(TableValueListener.class.getName());
+
+    private Long highSequence;
+
+    @Override
+	protected void map(String k, String v, StructuredObject current) throws IOException {
+		if (SOURCE_OPERATION.equals(k)) {
 			current.optype(v);
 		} else { 
 			super.map(k, v, current);
@@ -46,16 +52,35 @@ public class TableValueListener extends SimpleValueListener {
 
 	@Override
 	protected Map merge(Map map, String key, Object value) {
-		if(SOURCE_OPERATION.equals(key)
-				|| SOURCE_TIMESTAMP.equals(key)) { 
-			// skip elements in content
-			return map;
+        // skip elements in content
+		if (SOURCE_OPERATION.equals(key) || SOURCE_TIMESTAMP.equals(key)) {
+            return map;
+        } else if (SEQUENCE.equals(key)) {
+            if (value instanceof Long) {
+                highSequence = (Long) value;
+            } else {
+                logger.error("Could not retrieve value of '_seq' field, unsupported type: {}", value.getClass());
+            }
+            return map;
 		} 
 		
 		return super.merge(map, key, value);
 	}
-	
-	
 
-	
+    /**
+     * @return The highest source timestamp processed by this listener.
+     */
+    public Long getHighestSequence() {
+        return highSequence;
+    }
+
+    /**
+     * Set the highest source timestamp.
+     */
+    public void setHighestSequence(Long highSequence) {
+        this.highSequence = highSequence;
+    }
+
+
+
 }
