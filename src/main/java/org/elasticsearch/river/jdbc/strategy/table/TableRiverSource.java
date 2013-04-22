@@ -26,7 +26,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -44,7 +46,7 @@ public class TableRiverSource extends SimpleRiverSource {
 
     private final ESLogger logger = ESLoggerFactory.getLogger(TableRiverSource.class.getName());
 
-    private Long lastSequence = null;
+    private Map<String,Long> lastSequenceMap = new HashMap<String,Long>();
 
     @Override
     public String strategy() {
@@ -63,11 +65,11 @@ public class TableRiverSource extends SimpleRiverSource {
         for (String optype : optypes) {
             PreparedStatement statement;
             try {
-                statement = getQuery(connection, "\"", "\"");
+                statement = getQuery(connection, optype, "\"", "\"");
             } catch (SQLException e) {
                 try {
                     // hsqldb
-                    statement = getQuery(connection, "", "\"");
+                    statement = getQuery(connection, optype, "", "\"");
                 } catch (SQLException e2) {
                     logger.warn("Exception for both default and HSQLDB query", e2);
                     throw e;
@@ -78,9 +80,9 @@ public class TableRiverSource extends SimpleRiverSource {
                 logger.trace("({}) Fetching riveritems with source_timestamp between {} and {} ", context.riverName(), timestampFrom, timestampNow);
                 statement.setTimestamp(2, timestampFrom);
 	            statement.setTimestamp(3, timestampNow);
-            } else if (lastSequence != null) {
-                logger.trace("({}) Fetching riveritems having _seq > {}", context.riverName(), lastSequence);
-                statement.setLong(2, lastSequence);
+            } else if (lastSequenceMap.get(optype) != null) {
+                logger.trace("({}) Fetching riveritems having _seq > {}", context.riverName(), lastSequenceMap.get(optype));
+                statement.setLong(2, lastSequenceMap.get(optype));
             } else {
                 logger.trace("({}) Fetching all riveritems (lastSequence==null)", context.riverName());
             }
@@ -90,26 +92,26 @@ public class TableRiverSource extends SimpleRiverSource {
                 results = executeQuery(statement);
             } catch (SQLException e) {
                 // mysql
-                statement = getQuery(connection, "", "");
+                statement = getQuery(connection, optype, "", "");
 
                 statement.setString(1, optype);
                 if (!acknowledge()) {
 	                statement.setTimestamp(2, timestampFrom);
 	                statement.setTimestamp(3, timestampNow);
-                } else if (lastSequence != null) {
-                    statement.setLong(2, lastSequence);
+                } else if (lastSequenceMap.get(optype) != null) {
+                    statement.setLong(2, lastSequenceMap.get(optype));
                 }
                 results = executeQuery(statement);
             }
 
             try {
                 TableValueListener listener = new TableValueListener();
-                listener.setHighestSequence(lastSequence);
+                listener.setHighestSequence(lastSequenceMap.get(optype));
                 listener.target(context.riverMouth()).digest(context.digesting());
                 merge(results, listener); // ignore digest
 
                 //Update sequence for next run
-                lastSequence = listener.getHighestSequence();
+                lastSequenceMap.put(optype,listener.getHighestSequence());
             } catch (Exception e) {
                 throw new IOException(e);
             }
@@ -120,11 +122,11 @@ public class TableRiverSource extends SimpleRiverSource {
         return null;
     }
 
-    private PreparedStatement getQuery(Connection connection, String tableQuote, String fieldQuote) throws SQLException {
+    private PreparedStatement getQuery(Connection connection, String optype, String tableQuote, String fieldQuote) throws SQLException {
         String sql;
         if (acknowledge()) {
 
-            if (lastSequence == null) {
+            if (lastSequenceMap.get(optype) == null) {
                 sql = String.format(
                     "select * from %s%s%s where %ssource_operation%s = ? order by %s_seq%s",
                     tableQuote, context.riverName(), tableQuote,
