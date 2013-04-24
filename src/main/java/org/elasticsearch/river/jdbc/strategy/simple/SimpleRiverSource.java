@@ -24,24 +24,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.security.NoSuchAlgorithmException;
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.Clob;
-import java.sql.Connection;
-import java.sql.Date;
-import java.sql.DriverManager;
-import java.sql.NClob;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLNonTransientConnectionException;
-import java.sql.SQLXML;
-import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.sql.Types;
+import java.sql.*;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.LinkedList;
@@ -60,6 +43,7 @@ import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.river.jdbc.RiverSource;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.ValueListener;
@@ -164,7 +148,15 @@ public class SimpleRiverSource implements RiverSource {
             logger.debug("({}) {}", context.riverName(), e.getMessage());
         }
         if (cond) {
-            int retries = context != null ? context.retries() : 1;
+            String riverName = "";
+            int retries = 1;
+            TimeValue retryWait = new TimeValue(1000);
+            if (context != null) {
+                riverName = context.riverName();
+                retries = context.retries();
+                retryWait = context.maxRetryWait();
+            }
+
             while (retries > 0) {
                 retries--;
                 try {
@@ -181,12 +173,14 @@ public class SimpleRiverSource implements RiverSource {
                     }
                     return readConnection;
                 } catch (SQLException e) {
-                    logger.error("(" + context.riverName() + ") while opening read connection: " + url + " " + e.getMessage(), e);
+                    logger.error(String.format(
+                        "(%s) Exception while opening read connection to '%s' (%d retries left), sleeping %s",
+                        riverName, url, retries, retryWait
+                    ), e);
+
                     try {
-                        Thread.sleep(context != null ? context.maxRetryWait().millis() : 1000L);
-                    } catch (InterruptedException ex) {
-                        // do nothing
-                    }
+                        Thread.sleep(retryWait.millis());
+                    } catch (InterruptedException ignored) {}
                 }
             }
         }
@@ -210,7 +204,15 @@ public class SimpleRiverSource implements RiverSource {
             // postgresql does not support isValid()
         }
         if (cond) {
-            int retries = context != null ? context.retries() : 1;
+            String riverName = "";
+            int retries = 1;
+            TimeValue retryWait = new TimeValue(1000);
+            if (context != null) {
+                riverName = context.riverName();
+                retries = context.retries();
+                retryWait = context.maxRetryWait();
+            }
+
             while (retries > 0) {
                 retries--;
                 try {
@@ -223,12 +225,14 @@ public class SimpleRiverSource implements RiverSource {
                 } catch (SQLNonTransientConnectionException e) {
                     // ignore derby drop=true
                 } catch (SQLException e) {
-                    logger.error("(" + context.riverName() + ") while opening write connection: " + url + " " + e.getMessage(), e);
-                        try {
-                            Thread.sleep(context != null ? context.maxRetryWait().millis() : 1000L);
-                        } catch (InterruptedException ex) {
-                            // do nothing
-                        }
+                    logger.error(String.format(
+                        "(%s) Exception while opening write connection to '%s' (%d retries left), sleeping %s",
+                        riverName, url, retries, retryWait
+                    ), e);
+
+                    try {
+                        Thread.sleep(context != null ? context.maxRetryWait().millis() : 1000L);
+                    } catch (InterruptedException ignored) {}
                 }
             }
         }
