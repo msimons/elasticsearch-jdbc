@@ -45,6 +45,8 @@ public class TableValueListener extends SimpleValueListener {
 	protected void map(String k, String v, StructuredObject current) throws IOException {
 		if (SOURCE_OPERATION.equals(k)) {
 			current.optype(v);
+		} else if(SOURCE_TIMESTAMP.equals(k)) {
+			current.timestamp(v);
 		} else { 
 			super.map(k, v, current);
 		}
