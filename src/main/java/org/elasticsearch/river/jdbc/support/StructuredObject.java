@@ -54,13 +54,18 @@ public class StructuredObject implements PseudoColumnNames, Comparable<Structure
         return meta.get(OPTYPE);
     }
     
-    public StructuredObject timestamp(String timestamp) { 
-    	meta.put(TIMESTAMP, timestamp);
+    /**
+     * Used to identify a given object in time
+     * @param timestamp
+     * @return
+     */
+    public StructuredObject timestampId(String timestamp) { 
+    	meta.put("timestampid", timestamp);
     	return this;
     }
     
-    public String timestamp() { 
-    	return meta.get(TIMESTAMP);
+    public String timestampId() { 
+    	return meta.get("timestampid");
     }
 
     public StructuredObject index(String index) {
@@ -121,7 +126,7 @@ public class StructuredObject implements PseudoColumnNames, Comparable<Structure
         return Objects.equal(optype(), c.optype()) &&
                Objects.equal(index(), c.index()) &&
                Objects.equal(type(), c.type()) &&
-               Objects.equal(timestamp(), timestamp()) &&
+               Objects.equal(timestampId(), timestampId()) &&
                id() != null && id().equals(c.id());
     }
 
@@ -131,7 +136,7 @@ public class StructuredObject implements PseudoColumnNames, Comparable<Structure
         hash = 37 * hash + (optype() != null ? optype().hashCode() : 0);
         hash = 37 * hash + (index() != null ? index().hashCode() : 0);
         hash = 37 * hash + (type() != null ? type().hashCode() : 0);
-        hash = 37 * hash + (timestamp() != null ? timestamp().hashCode() : 0);
+        hash = 37 * hash + (timestampId() != null ? timestampId().hashCode() : 0);
         hash = 37 * hash + (id() != null ? id().hashCode() : 0);
         return hash;
     }
@@ -154,8 +159,8 @@ public class StructuredObject implements PseudoColumnNames, Comparable<Structure
         if (i != 0) {
             return i;
         }
-        if (timestamp() != null && o.timestamp() != null) {
-            i = timestamp().compareTo(o.timestamp());
+        if (timestampId() != null && o.timestampId() != null) {
+            i = timestampId().compareTo(o.timestampId());
         }
         if (i != 0) {
             return i;
@@ -227,7 +232,7 @@ public class StructuredObject implements PseudoColumnNames, Comparable<Structure
     }
 
     public boolean isEmpty() {
-        return index() == null && type() == null && id() == null && timestamp() == null && source.isEmpty();
+        return index() == null && type() == null && id() == null && timestampId() == null && source.isEmpty();
     }
 
     public void clear() {

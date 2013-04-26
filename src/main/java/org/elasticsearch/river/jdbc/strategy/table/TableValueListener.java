@@ -46,7 +46,7 @@ public class TableValueListener extends SimpleValueListener {
 		if (SOURCE_OPERATION.equals(k)) {
 			current.optype(v);
 		} else if(SOURCE_TIMESTAMP.equals(k)) {
-			current.timestamp(v);
+			current.timestampId(v);
 		} else { 
 			super.map(k, v, current);
 		}
