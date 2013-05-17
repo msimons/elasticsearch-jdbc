@@ -39,7 +39,9 @@ public class TableRiverFlow extends SimpleRiverFlow {
     @Override
     public void move() {
         try {
+            setRunningState(true);
             context.riverSource().fetch();
+            setRunningState(false);
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
             abort = true;

@@ -150,6 +150,8 @@ public class SimpleRiverFlow implements RiverFlow {
     @Override
     public void move() {
         try {
+            setRunningState(true);
+
             RiverSource source = context.riverSource();
             RiverMouth target = context.riverMouth();
             Client client = context.riverMouth().client();
@@ -205,10 +207,35 @@ public class SimpleRiverFlow implements RiverFlow {
                 // perform outstanding versionHouseKeeping bulk requests
                 target.flush();
             }
+
+            setRunningState(false);
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
             abort = true;
         }
+    }
+
+    /**
+     * Stores the running state in the index.
+     * @param running Running state.
+     * @throws IOException On any failure.
+     */
+    protected void setRunningState(boolean running) throws IOException {
+        Client client = context.riverMouth().client();
+
+        //Build document
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject().startObject("jdbc");
+        builder.field("lastUpdate", new Date());
+        builder.field("running", running);
+        builder.endObject().endObject();
+
+        //Store
+        client.prepareBulk().add(indexRequest(context.riverIndexName())
+            .type(context.riverName())
+            .id(ID_RUNSTATUS_RIVER_INDEX)
+            .source(builder))
+            .execute().actionGet();
     }
 
     /**

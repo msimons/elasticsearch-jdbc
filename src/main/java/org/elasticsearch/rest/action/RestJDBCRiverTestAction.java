@@ -28,29 +28,27 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.dispatch.JdbcLocalOperationDispatcher;
 import org.elasticsearch.rest.dispatch.cluster.JdbcClusterOperationDispatcher;
 import org.elasticsearch.rest.dispatch.cluster.JdbcClusterOperationListener;
-import org.elasticsearch.rest.operation.JdbcInduceOperation;
+import org.elasticsearch.rest.operation.JdbcTestOperation;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * The JDBC River REST induce action. The river can be fired once to run
- * when this action is called from REST.
+ * The JDBC River REST test action. Does nothing, just returns a message.
  * <p>
  * Example:<br/>
  * <code>
- * curl -XPOST 'localhost:9200/_river/my_jdbc_river/_induce'
+ * curl 'localhost:9200/_river/my_jdbc_river/_test'
  * </code>
- * @author Jörg Prante <joergprante@gmail.com>
  * @author pdegeus
  */
-public class RestJDBCRiverInduceAction extends AbstractJdbcRiverRestAction {
+public class RestJDBCRiverTestAction extends AbstractJdbcRiverRestAction {
 
     @Inject
-    public RestJDBCRiverInduceAction(
+    public RestJDBCRiverTestAction(
         Settings settings, Client client, RestController controller, TransportService transportService, JdbcClusterOperationListener listener,
         JdbcLocalOperationDispatcher localDispatcher, JdbcClusterOperationDispatcher clusterDispatcher
     ) {
         super(settings, client, transportService, listener, localDispatcher, clusterDispatcher);
-        controller.registerHandler(RestRequest.Method.POST, "/_river/{river}/_induce", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_river/{river}/_test", this);
     }
 
     @Override
@@ -64,7 +62,7 @@ public class RestJDBCRiverInduceAction extends AbstractJdbcRiverRestAction {
         }
 
         //Execute
-        execute(request, channel, new JdbcInduceOperation(riverName));
+        execute(request, channel, new JdbcTestOperation(riverName));
 
     }
 
