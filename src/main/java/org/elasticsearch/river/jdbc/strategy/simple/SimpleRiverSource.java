@@ -45,6 +45,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.river.jdbc.RiverSource;
+import org.elasticsearch.river.jdbc.support.ConnectionFactory;
+import org.elasticsearch.river.jdbc.support.JDBCSettings;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.ValueListener;
 
@@ -160,16 +162,14 @@ public class SimpleRiverSource implements RiverSource {
             while (retries > 0) {
                 retries--;
                 try {
-                    readConnection = DriverManager.getConnection(url, user, password);
-                    // required by MySQL for large result streaming
-                    readConnection.setReadOnly(true);
+                    readConnection = ConnectionFactory.getInstance().getConnection(new JDBCSettings(driver,url,user,password));
                     // Postgresql cursor mode condition:
                     // fetchsize > 0, no scrollable result set, no auto commit, no holdable cursors over commit
                     // https://github.com/pgjdbc/pgjdbc/blob/master/org/postgresql/jdbc2/AbstractJdbc2Statement.java#L514
                     //readConnection.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);
                     if (context != null) {
                         // many drivers don't like autocommit=true
-                        readConnection.setAutoCommit(context.autocommit());
+                       // readConnection.setAutoCommit(context.autocommit());
                     }
                     return readConnection;
                 } catch (SQLException e) {
@@ -216,10 +216,10 @@ public class SimpleRiverSource implements RiverSource {
             while (retries > 0) {
                 retries--;
                 try {
-                    writeConnection = DriverManager.getConnection(url, user, password);
+                    writeConnection = ConnectionFactory.getInstance().getConnection(new JDBCSettings(driver,url,user,password));
                     if (context != null) {
                         // many drivers don't like autocommit=true
-                        writeConnection.setAutoCommit(context.autocommit());
+                       // writeConnection.setAutoCommit(context.autocommit());
                     }
                     return writeConnection;
                 } catch (SQLNonTransientConnectionException e) {
@@ -262,6 +262,7 @@ public class SimpleRiverSource implements RiverSource {
         }
         close(results);
         close(statement);
+        closeReading();
         sendAcknowledge();
         return mergeDigest;
     }
