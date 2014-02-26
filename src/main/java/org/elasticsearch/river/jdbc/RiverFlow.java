@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.river.jdbc;
 
-import org.elasticsearch.river.jdbc.support.RiverContext;
-
 import java.util.Date;
+
+import org.elasticsearch.river.jdbc.support.RiverContext;
 
 /**
  * RiverFlow fluent API
@@ -34,9 +34,14 @@ import java.util.Date;
 public interface RiverFlow extends Runnable {
 
     /**
-     * The doc ID of the info document in the river index
+     * The doc ID of the info document in the river index.
      */
     String ID_INFO_RIVER_INDEX = "_custom";
+
+    /**
+     * The doc ID of the running status document in the river index.
+     */
+    String ID_RUNSTATUS_RIVER_INDEX = "_runstatus";
 
     /**
      * The strategy

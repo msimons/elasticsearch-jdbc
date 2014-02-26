@@ -247,4 +247,9 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
         thread.start(); // once
     }
 
+    @Override
+    public String toString() {
+        return String.format("[%s::%s::%s]", getClass().getSimpleName(), indexName, riverName().name());
+    }
+
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.rest.action.RestJDBCRiverInduceAction;
+import org.elasticsearch.rest.action.RestJDBCRiverTestAction;
 import org.elasticsearch.river.RiversModule;
 import org.elasticsearch.river.jdbc.JDBCRiver;
 import org.elasticsearch.river.jdbc.JDBCRiverModule;
@@ -53,21 +54,20 @@ public class JDBCRiverPlugin extends AbstractPlugin {
     }
 
     /**
-     * Register the JDBC river to Elasticsearch node
-     *
-     * @param module
+     * Register the JDBC river on the Elasticsearch node.
+     * @param module RiversModule to work on.
      */
     public void onModule(RiversModule module) {
         module.registerRiver(JDBCRiver.TYPE, JDBCRiverModule.class);
     }
 
     /**
-     * Register the REST move to Elasticsearch node
-     *
-     * @param module
+     * Register the JDBC REST action on the Elasticsearch node.
+     * @param module RestModule to work on.
      */
     public void onModule(RestModule module) {
         module.addRestAction(RestJDBCRiverInduceAction.class);
+        module.addRestAction(RestJDBCRiverTestAction.class);
     }
 
 }
