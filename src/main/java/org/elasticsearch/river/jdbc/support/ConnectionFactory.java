@@ -27,6 +27,7 @@ public class ConnectionFactory {
     private static final Long CONNECTION_MIN_EVICTABLE_IDLE_TIME = 300000L;
     private static final Long CONNECTION_MAX_IDLE = 2L;
     private static final int MAX_CONNECTIONS = 15;
+    private static final String ORACLE_DRIVER = "oracle.jdbc.driver.OracleDriver";
 
     private static Map<JDBCSettings,DataSource> dataSources = new HashMap<JDBCSettings, DataSource>();
 
@@ -54,6 +55,10 @@ public class ConnectionFactory {
              We'll use a GenericObjectPool instance, although any ObjectPool implementation will suffice. */
 
             GenericObjectPool connectionPool = new GenericObjectPool(null, MAX_CONNECTIONS);
+
+            connectionPool.setTestOnBorrow(true);
+            connectionPool.setTestOnReturn(true);
+            connectionPool.setTestWhileIdle(true);
             connectionPool.setTimeBetweenEvictionRunsMillis(CONNECTION_TIME_BETWEEN_EVICTION_RUNS);
             connectionPool.setNumTestsPerEvictionRun(CONNECTION_NUM_TESTS_PER_EVICTION_RUN.intValue());
             connectionPool.setMinEvictableIdleTimeMillis(CONNECTION_MIN_EVICTABLE_IDLE_TIME);
@@ -69,7 +74,7 @@ public class ConnectionFactory {
             org.apache.commons.dbcp.ConnectionFactory connectionFactory = new DriverManagerConnectionFactory(jdbcSettings.url, connectionProperties);
 
             /* Now we'll create the "real" Connections for the ConnectionFactory with the classes that implement the pooling functionality. */
-            new PoolableConnectionFactory(connectionFactory, connectionPool, null,null, false, true);
+            new PoolableConnectionFactory(connectionFactory, connectionPool, null,ORACLE_DRIVER.equals(jdbcSettings.driver) ? "SELECT COUNT(*) FROM DUAL" : null, false, true);
 
             dataSource = new PoolingDataSource(connectionPool);
             dataSources.put(jdbcSettings,dataSource);
