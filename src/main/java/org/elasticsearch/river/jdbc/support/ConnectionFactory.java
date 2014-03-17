@@ -20,11 +20,13 @@ import java.util.Properties;
  */
 public class ConnectionFactory {
 
+    private final ESLogger logger = ESLoggerFactory.getLogger(ConnectionFactory.class.getName());
     private static ConnectionFactory instance = null;
     private static final ESLogger LOG = ESLoggerFactory.getLogger(ConnectionFactory.class.getName());
     private static final Long CONNECTION_TIME_BETWEEN_EVICTION_RUNS = 60000L;
     private static final Long CONNECTION_NUM_TESTS_PER_EVICTION_RUN = 25L;
     private static final Long CONNECTION_MIN_EVICTABLE_IDLE_TIME = 300000L;
+    private static final String CONNECTION_VALIDATION_QUERY = "SELECT COUNT(1) FROM DUAL";
     private static final Long CONNECTION_MAX_IDLE = 2L;
     private static final int MAX_CONNECTIONS = 15;
     private static final String ORACLE_DRIVER = "oracle.jdbc.driver.OracleDriver";
