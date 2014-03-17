@@ -71,10 +71,21 @@ public class ConnectionFactory {
             connectionProperties.put("user", jdbcSettings.user);
             connectionProperties.put("password", jdbcSettings.password);
 
+            if(ORACLE_DRIVER.equals(jdbcSettings.driver))  {
+                logger.debug("detected oracle driver: adding pooling parameters to connection properties set.");
+                connectionProperties.put("validationQuery", CONNECTION_VALIDATION_QUERY);
+                connectionProperties.put("testOnBorrow", true);
+                connectionProperties.put("testWhileIdle", true);
+                connectionProperties.put("testOnReturn", true);
+                connectionProperties.put("timeBetweenEvictionRunsMillis", CONNECTION_TIME_BETWEEN_EVICTION_RUNS);
+                connectionProperties.put("numTestsPerEvictionRun", CONNECTION_NUM_TESTS_PER_EVICTION_RUN);
+                connectionProperties.put("minEvictableIdleTimeMillis", CONNECTION_MIN_EVICTABLE_IDLE_TIME);
+            }
+
             org.apache.commons.dbcp.ConnectionFactory connectionFactory = new DriverManagerConnectionFactory(jdbcSettings.url, connectionProperties);
 
             /* Now we'll create the "real" Connections for the ConnectionFactory with the classes that implement the pooling functionality. */
-            new PoolableConnectionFactory(connectionFactory, connectionPool, null,ORACLE_DRIVER.equals(jdbcSettings.driver) ? "SELECT COUNT(*) FROM DUAL" : null, false, true);
+            new PoolableConnectionFactory(connectionFactory, connectionPool, null,ORACLE_DRIVER.equals(jdbcSettings.driver) ? CONNECTION_VALIDATION_QUERY : null, false, true);
 
             dataSource = new PoolingDataSource(connectionPool);
             dataSources.put(jdbcSettings,dataSource);
