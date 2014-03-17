@@ -56,68 +56,76 @@ public class TableRiverSource extends SimpleRiverSource {
     @Override
     public String fetch() throws SQLException, IOException {
         Connection connection = connectionForReading();
-        String[] optypes = { Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE, Operations.OP_UPDATE };
 
-        long now = System.currentTimeMillis();
-        Timestamp timestampFrom = new Timestamp(now - context.pollingInterval().millis());
-        Timestamp timestampNow = new Timestamp(now);
+        try {
+            String[] optypes = { Operations.OP_CREATE, Operations.OP_INDEX, Operations.OP_DELETE, Operations.OP_UPDATE };
 
-        for (String optype : optypes) {
-            PreparedStatement statement;
-            try {
-                statement = getQuery(connection, optype, "\"", "\"");
-            } catch (SQLException e) {
+            long now = System.currentTimeMillis();
+            Timestamp timestampFrom = new Timestamp(now - context.pollingInterval().millis());
+            Timestamp timestampNow = new Timestamp(now);
+
+            for (String optype : optypes) {
+                PreparedStatement statement;
                 try {
-                    // hsqldb
-                    statement = getQuery(connection, optype, "", "\"");
-                } catch (SQLException e2) {
-                    logger.warn("Exception for both default and HSQLDB query", e2);
-                    throw e;
+                    statement = getQuery(connection, optype, "\"", "\"");
+                } catch (SQLException e) {
+                    try {
+                        // hsqldb
+                        statement = getQuery(connection, optype, "", "\"");
+                    } catch (SQLException e2) {
+                        logger.warn("Exception for both default and HSQLDB query", e2);
+                        throw e;
+                    }
                 }
-            }
-            statement.setString(1, optype);
-            if (!acknowledge()) {
-                logger.trace("({}) Fetching riveritems with source_timestamp between {} and {} ", context.riverName(), timestampFrom, timestampNow);
-                statement.setTimestamp(2, timestampFrom);
-	            statement.setTimestamp(3, timestampNow);
-            } else if (lastSequenceMap.get(optype) != null) {
-                logger.trace("({}) Fetching riveritems having _seq > {}", context.riverName(), lastSequenceMap.get(optype));
-                statement.setLong(2, lastSequenceMap.get(optype));
-            } else {
-                logger.trace("({}) Fetching all riveritems (lastSequence==null)", context.riverName());
-            }
-
-            ResultSet results;
-            try {
-                results = executeQuery(statement);
-            } catch (SQLException e) {
-                // mysql
-                statement = getQuery(connection, optype, "", "");
-
                 statement.setString(1, optype);
                 if (!acknowledge()) {
-	                statement.setTimestamp(2, timestampFrom);
-	                statement.setTimestamp(3, timestampNow);
+                    logger.trace("({}) Fetching riveritems with source_timestamp between {} and {} ", context.riverName(), timestampFrom, timestampNow);
+                    statement.setTimestamp(2, timestampFrom);
+                    statement.setTimestamp(3, timestampNow);
                 } else if (lastSequenceMap.get(optype) != null) {
+                    logger.trace("({}) Fetching riveritems having _seq > {}", context.riverName(), lastSequenceMap.get(optype));
                     statement.setLong(2, lastSequenceMap.get(optype));
+                } else {
+                    logger.trace("({}) Fetching all riveritems (lastSequence==null)", context.riverName());
                 }
-                results = executeQuery(statement);
+
+                ResultSet results;
+                try {
+                    results = executeQuery(statement);
+                } catch (SQLException e) {
+                    // mysql
+                    statement = getQuery(connection, optype, "", "");
+
+                    statement.setString(1, optype);
+                    if (!acknowledge()) {
+                        statement.setTimestamp(2, timestampFrom);
+                        statement.setTimestamp(3, timestampNow);
+                    } else if (lastSequenceMap.get(optype) != null) {
+                        statement.setLong(2, lastSequenceMap.get(optype));
+                    }
+                    results = executeQuery(statement);
+                }
+
+                try {
+                    TableValueListener listener = new TableValueListener();
+                    listener.setHighestSequence(lastSequenceMap.get(optype));
+                    listener.target(context.riverMouth()).digest(context.digesting());
+                    merge(results, listener); // ignore digest
+
+                    //Update sequence for next run
+                    lastSequenceMap.put(optype,listener.getHighestSequence());
+                } catch (Exception e) {
+                    throw new IOException(e);
+                }
+
+
+                close(results);
+                close(statement);
+                sendAcknowledge();
             }
 
-            try {
-                TableValueListener listener = new TableValueListener();
-                listener.setHighestSequence(lastSequenceMap.get(optype));
-                listener.target(context.riverMouth()).digest(context.digesting());
-                merge(results, listener); // ignore digest
-
-                //Update sequence for next run
-                lastSequenceMap.put(optype,listener.getHighestSequence());
-            } catch (Exception e) {
-                throw new IOException(e);
-            }
-            close(results);
-            close(statement);
-            sendAcknowledge();
+        } finally {
+            closeReading();
         }
         return null;
     }

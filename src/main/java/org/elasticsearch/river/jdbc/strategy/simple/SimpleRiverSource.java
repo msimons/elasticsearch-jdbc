@@ -242,27 +242,32 @@ public class SimpleRiverSource implements RiverSource {
     @Override
     public String fetch() throws SQLException, IOException {
         PreparedStatement statement = null;
-        ResultSet results;
-        if (context.pollStatementParams().isEmpty()) {
-            // Postgresql requires executeQuery(sql) for cursor with fetchsize
-            results = executeQuery(getSql());
-        } else {
-            statement = prepareQuery(getSql());
-            bind(statement, context.pollStatementParams());
-            results = executeQuery(statement);
-        }
+        ResultSet results = null;
         String mergeDigest;
+
         try {
-            ValueListener listener = new SimpleValueListener()
-                    .target(context.riverMouth())
-                    .digest(context.digesting());
-            mergeDigest = merge(results, listener);
-        } catch (Exception e) {
-            throw new IOException(e);
+            if (context.pollStatementParams().isEmpty()) {
+                // Postgresql requires executeQuery(sql) for cursor with fetchsize
+                results = executeQuery(getSql());
+            } else {
+                statement = prepareQuery(getSql());
+                bind(statement, context.pollStatementParams());
+                results = executeQuery(statement);
+            }
+            try {
+                ValueListener listener = new SimpleValueListener()
+                        .target(context.riverMouth())
+                        .digest(context.digesting());
+                mergeDigest = merge(results, listener);
+            } catch (Exception e) {
+                throw new IOException(e);
+            }
+        } finally {
+                close(results);
+                close(statement);
+                closeReading();
         }
-        close(results);
-        close(statement);
-        closeReading();
+
         sendAcknowledge();
         return mergeDigest;
     }
@@ -303,20 +308,23 @@ public class SimpleRiverSource implements RiverSource {
         // send acknowledge statement if defined
         if (context.pollAckStatement() != null) {
             Connection connection = connectionForWriting();
-            PreparedStatement statement = prepareUpdate(context.pollAckStatement());
-            if (context.pollAckStatementParams() != null) {
-                bind(statement, context.pollAckStatementParams());
-            }
-            statement.execute();
-            close(statement);
-            try {
-                if (!connection.getAutoCommit()) {
-                    connection.commit();
+            try  {
+                PreparedStatement statement = prepareUpdate(context.pollAckStatement());
+                if (context.pollAckStatementParams() != null) {
+                    bind(statement, context.pollAckStatementParams());
                 }
-            } catch (SQLException e) {
-                //  Can't call commit when autocommit=true
+                statement.execute();
+                close(statement);
+                try {
+                    if (!connection.getAutoCommit()) {
+                        connection.commit();
+                    }
+                } catch (SQLException e) {
+                    //  Can't call commit when autocommit=true
+                }
+            } finally {
+                closeWriting();
             }
-            closeWriting();
         }
     }
 
