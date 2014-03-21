@@ -41,6 +41,8 @@ import org.elasticsearch.river.jdbc.support.ValueSet;
  */
 public class SimpleValueListener<O extends Object> implements ValueListener {
 
+    public static final String NILL_VALUE = "_nill_";
+
     /**
      * The current structured object
      */
@@ -139,7 +141,7 @@ public class SimpleValueListener<O extends Object> implements ValueListener {
         for (int i = 0; i < values.size(); i++) {
             // v may be null
             Object o = values.get(i);
-            if (o == null) {
+            if (o == null || NILL_VALUE.equals(o)) {
                 continue;
             }
             String v = o.toString();
@@ -167,6 +169,11 @@ public class SimpleValueListener<O extends Object> implements ValueListener {
         }
         // create current object from values by sequentially merging the values
         for (int i = 0; i < keys.size(); i++) {
+
+            if(NILL_VALUE.equals(values.get(i))) {
+                continue;
+            }
+
             Map m = merge(current.source(), keys.get(i), values.get(i));
             current.source(m);
         }

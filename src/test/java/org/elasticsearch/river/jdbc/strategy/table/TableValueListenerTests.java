@@ -39,6 +39,29 @@ public class TableValueListenerTests extends Assert {
         				"index/null/null/3 {label=\"label3\"}={\"label\":\"label3\"}, " +
         						"index/null/null/4 {label=\"label4\"}={\"label\":\"label4\"}}");
     }
+
+    @Test
+    public void testUpdateWithoutColumn() throws Exception {
+        List<String> columns = Arrays.asList("source_operation", "_id", "person.surname","person.lastname");
+        List<String> row1 = Arrays.asList("index", "1", "Johnny","Bravo");
+        List<String> row2 = Arrays.asList("index", "1", "Johnny","Bravo");
+        List<String> row3 = Arrays.asList("index", "2", "Mickey",null);
+        List<String> row4 = Arrays.asList("index", "3", "Road","_nill_");
+        MockRiverMouth target = new MockRiverMouth();
+        new TableValueListener()
+                .target(target)
+                .begin()
+                .keys(columns)
+                .values(row1)
+                .values(row2)
+                .values(row3)
+                .values(row4)
+                .end();
+        assertEquals(target.data().size(), 3, "Number of inserted objects");
+        assertEquals(target.data().toString(),"{index/null/null/1 {person={lastname=\"Bravo\", surname=\"Johnny\"}}={\"person\":{\"lastname\":\"Bravo\",\"surname\":\"Johnny\"}}," +
+                " index/null/null/2 {person={lastname=null, surname=\"Mickey\"}}={\"person\":{\"lastname\":null,\"surname\":\"Mickey\"}}, " +
+                "index/null/null/3 {person={surname=\"Road\"}}={\"person\":{\"surname\":\"Road\"}}}");
+    }
     
     @Test
     public void testMergeDelete() throws Exception {
