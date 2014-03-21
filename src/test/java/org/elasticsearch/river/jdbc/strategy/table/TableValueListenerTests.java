@@ -7,8 +7,13 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.elasticsearch.river.jdbc.strategy.mock.MockRiverMouth;
+import org.elasticsearch.river.jdbc.strategy.simple.SimpleRiverSource;
+import org.elasticsearch.river.jdbc.strategy.simple.SimpleValueListener;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import static org.elasticsearch.river.jdbc.strategy.simple.SimpleValueListener.DOUBLE_NILL_VALUE;
+import static org.elasticsearch.river.jdbc.strategy.simple.SimpleValueListener.STRING_NILL_VALUE;
 
 /**
  * @author simon00t
@@ -42,11 +47,11 @@ public class TableValueListenerTests extends Assert {
 
     @Test
     public void testUpdateWithoutColumn() throws Exception {
-        List<String> columns = Arrays.asList("source_operation", "_id", "person.surname","person.lastname");
-        List<String> row1 = Arrays.asList("index", "1", "Johnny","Bravo");
-        List<String> row2 = Arrays.asList("index", "1", "Johnny","Bravo");
-        List<String> row3 = Arrays.asList("index", "2", "Mickey",null);
-        List<String> row4 = Arrays.asList("index", "3", "Road","_nill_");
+        List<String> columns = Arrays.asList("source_operation", "_id", "person.surname","person.lastname","person.age");
+        List<Object> row1 = Arrays.asList(new Object[]{"index", "1", "Johnny","Bravo",3});
+        List<Object> row2 = Arrays.asList(new Object[]{"index", "1", "Johnny","Bravo",5});
+        List<Object> row3 = Arrays.asList(new Object[]{"index", "2", "Mickey",null,null});
+        List<Object> row4 = Arrays.asList(new Object[]{"index", "3", "Road", STRING_NILL_VALUE, DOUBLE_NILL_VALUE});
         MockRiverMouth target = new MockRiverMouth();
         new TableValueListener()
                 .target(target)
@@ -58,9 +63,9 @@ public class TableValueListenerTests extends Assert {
                 .values(row4)
                 .end();
         assertEquals(target.data().size(), 3, "Number of inserted objects");
-        assertEquals(target.data().toString(),"{index/null/null/1 {person={lastname=\"Bravo\", surname=\"Johnny\"}}={\"person\":{\"lastname\":\"Bravo\",\"surname\":\"Johnny\"}}," +
-                " index/null/null/2 {person={lastname=null, surname=\"Mickey\"}}={\"person\":{\"lastname\":null,\"surname\":\"Mickey\"}}, " +
-                "index/null/null/3 {person={surname=\"Road\"}}={\"person\":{\"surname\":\"Road\"}}}");
+        assertEquals(target.data().toString(),"{index/null/null/1 {person={age=[3,5], lastname=\"Bravo\", surname=\"Johnny\"}}={\"person\":{\"age\":[3,5],\"lastname\":\"Bravo\",\"surname\":\"Johnny\"}}," +
+                " index/null/null/2 {person={age=null, lastname=null, surname=\"Mickey\"}}={\"person\":{\"age\":null,\"lastname\":null,\"surname\":\"Mickey\"}}," +
+                " index/null/null/3 {person={surname=\"Road\"}}={\"person\":{\"surname\":\"Road\"}}}");
     }
     
     @Test
