@@ -375,11 +375,8 @@ public class SimpleRiverSource implements RiverSource {
                 throw new SQLException("file not found: " + sql);
             }
         }
-        Connection connection = connectionForWriting();
-        if (connection == null) {
-            throw new SQLException("can't connect to source " + url);
-        }
-        return connection.prepareStatement(sql);
+            Connection connection = connectionForWriting();
+            return connection.prepareStatement(sql);
     }
 
     /**
@@ -414,13 +411,6 @@ public class SimpleRiverSource implements RiverSource {
         statement.setFetchSize(context.fetchSize());
         logger.debug("executing prepared statement");
         ResultSet set = statement.executeQuery();
-
-        if(readConnection == null) { 
-        	readConnection = connectionForReading();
-        	if (readConnection == null) {
-                throw new SQLException("can't connect to source " + url);
-            }
-        }
         
         return set;
     }

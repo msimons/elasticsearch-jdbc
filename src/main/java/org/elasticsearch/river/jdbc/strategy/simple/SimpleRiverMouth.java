@@ -19,6 +19,7 @@
 package org.elasticsearch.river.jdbc.strategy.simple;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 

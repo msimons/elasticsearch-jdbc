@@ -35,6 +35,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.river.jdbc.strategy.simple.SimpleRiverSource;
+import org.elasticsearch.river.jdbc.support.ConnectionFactory;
 import org.elasticsearch.river.jdbc.support.Operations;
 
 /**
@@ -180,8 +181,8 @@ public class TableRiverSource extends SimpleRiverSource {
         if (!acknowledge()) {
         	return this;
         }
-        
         try {
+            connectionForWriting();
             for (BulkItemResponse resp : response.items()) {
                 PreparedStatement pstmt;
                 List<Object> params;
@@ -215,6 +216,8 @@ public class TableRiverSource extends SimpleRiverSource {
             }
         } catch (SQLException ex) {
             throw new IOException(ex);
+        } finally {
+            closeWriting();
         }
         return this;
     }

@@ -41,4 +41,14 @@ public class JDBCSettings {
         result = 31 * result + password.hashCode();
         return result;
     }
+
+    @Override
+    public String toString() {
+        return "JDBCSettings{" +
+                "driver='" + driver + '\'' +
+                ", url='" + url + '\'' +
+                ", user='" + user + '\'' +
+                ", password='" + password + '\'' +
+                '}';
+    }
 }
