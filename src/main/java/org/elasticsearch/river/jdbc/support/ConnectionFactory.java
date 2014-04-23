@@ -1,6 +1,6 @@
 package org.elasticsearch.river.jdbc.support;
 
-import org.apache.commons.dbcp.BasicDataSource;
+import org.apache.commons.dbcp.AbandonedConfig;
 import org.apache.commons.dbcp.DriverManagerConnectionFactory;
 import org.apache.commons.dbcp.PoolableConnectionFactory;
 import org.apache.commons.dbcp.PoolingDataSource;
@@ -84,12 +84,22 @@ public class ConnectionFactory {
                 connectionProperties.put("minEvictableIdleTimeMillis", CONNECTION_MIN_EVICTABLE_IDLE_TIME);
             }
 
+            // create a PoolableConnectionFactory
+            AbandonedConfig abandonedConfig = new AbandonedConfig();
+            // flag to remove abandoned connections from pool
+            abandonedConfig.setRemoveAbandoned(true);
+            // timeout (seconds) before removing abandoned connections
+            abandonedConfig.setRemoveAbandonedTimeout(30);
+            // Flag to log stack traces for application code which abandoned a
+            // Statement or Connection
+            abandonedConfig.setLogAbandoned(true);
             org.apache.commons.dbcp.ConnectionFactory connectionFactory = new DriverManagerConnectionFactory(jdbcSettings.url, connectionProperties);
 
             /* Now we'll create the "real" Connections for the ConnectionFactory with the classes that implement the pooling functionality. */
-            new PoolableConnectionFactory(connectionFactory, connectionPool, null,ORACLE_DRIVER.equals(jdbcSettings.driver) ? CONNECTION_VALIDATION_QUERY : null, false, true);
+            new PoolableConnectionFactory(connectionFactory, connectionPool, null,ORACLE_DRIVER.equals(jdbcSettings.driver) ? CONNECTION_VALIDATION_QUERY : null, false, true,abandonedConfig);
 
             dataSource = new PoolingDataSource(connectionPool);
+
             dataSources.put(jdbcSettings,dataSource);
         }
 
