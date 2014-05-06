@@ -51,4 +51,8 @@ public class JdbcClusterOperationListener implements TransportRequestHandler<Jdb
         return Names.SAME;
     }
 
+    @Override
+    public boolean isForceExecution() {
+        return true;
+    }
 }

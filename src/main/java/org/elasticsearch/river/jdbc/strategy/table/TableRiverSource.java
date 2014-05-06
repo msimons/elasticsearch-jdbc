@@ -183,7 +183,7 @@ public class TableRiverSource extends SimpleRiverSource {
         }
         try {
             connectionForWriting();
-            for (BulkItemResponse resp : response.items()) {
+            for (BulkItemResponse resp : response.getItems()) {
                 PreparedStatement pstmt;
                 List<Object> params;
                 
@@ -207,7 +207,7 @@ public class TableRiverSource extends SimpleRiverSource {
                 params.add(resp.getType());
                 params.add(resp.getId());
                 params.add(new Timestamp(new Date().getTime()));
-                params.add(resp.opType());
+                params.add(resp.getOpType());
                 params.add(resp.isFailed());
                 params.add(resp.getFailureMessage());
                 bind(pstmt, params);

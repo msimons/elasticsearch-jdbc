@@ -29,7 +29,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.update.PartialDocumentUpdateRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -97,7 +97,7 @@ public class SimpleRiverMouth implements RiverMouth {
             }
         	outstandingBulkRequests.decrementAndGet();
             logger.info("({}) bulk [{}] success [{} items] [{}ms]",
-                    context.riverName(), executionId, response.items().length, response.getTook().millis());
+                    context.riverName(), executionId, response.getItems().length, response.getTook().millis());
             
         }
 
@@ -263,7 +263,8 @@ public class SimpleRiverMouth implements RiverMouth {
              request.routing(object.meta(StructuredObject.ROUTING));
          }
          if (object.meta(StructuredObject.PERCOLATE) != null) {
-             request.percolate(object.meta(StructuredObject.PERCOLATE));
+             //FIXME: Support for percolation obsolete in 1.0.1?
+             //request.percolate(object.meta(StructuredObject.PERCOLATE));
          }
          if (object.meta(StructuredObject.PARENT) != null) {
              request.parent(object.meta(StructuredObject.PARENT));
@@ -283,10 +284,10 @@ public class SimpleRiverMouth implements RiverMouth {
     	IndexRequest indexRequest = createIndexRequest(object, true);
     	
     	if(indexRequest != null){
-    		PartialDocumentUpdateRequest updateRequest = new PartialDocumentUpdateRequest(
+    		UpdateRequest updateRequest = new UpdateRequest(
 	    			object.index(), object.type(), object.id())
-	    		   .setDoc(indexRequest)
-	    		   .setUpsertRequest(indexRequest);
+	    		   .doc(indexRequest)
+	    		   .upsert(indexRequest);
 	    			
 	    	bulk.add(updateRequest);
     	}
