@@ -18,23 +18,8 @@
  */
 package org.elasticsearch.river.jdbc.strategy.simple;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.math.BigDecimal;
-import java.security.NoSuchAlgorithmException;
-import java.sql.*;
-import java.text.NumberFormat;
-import java.text.ParseException;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.regex.Pattern;
-
 import oracle.jdbc.OracleResultSet;
 import oracle.sql.OPAQUE;
-
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.io.Streams;
@@ -49,6 +34,20 @@ import org.elasticsearch.river.jdbc.support.ConnectionFactory;
 import org.elasticsearch.river.jdbc.support.JDBCSettings;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.ValueListener;
+
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.math.BigDecimal;
+import java.security.NoSuchAlgorithmException;
+import java.sql.*;
+import java.text.NumberFormat;
+import java.text.ParseException;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * A river source implementation for the 'simple' strategy.

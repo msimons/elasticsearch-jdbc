@@ -18,12 +18,6 @@
  */
 package org.elasticsearch.river.jdbc;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -32,14 +26,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.river.AbstractRiverComponent;
-import org.elasticsearch.river.River;
-import org.elasticsearch.river.RiverIndexName;
-import org.elasticsearch.river.RiverName;
-import org.elasticsearch.river.RiverSettings;
+import org.elasticsearch.river.*;
 import org.elasticsearch.river.jdbc.support.LocaleUtil;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.RiverServiceLoader;
+
+import java.io.IOException;
+import java.util.*;
 
 /**
  * The JDBC river
@@ -124,7 +117,7 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
                         : new HashMap<String, Object>();
         indexName = XContentMapValues.nodeStringValue(targetSettings.get("index"), TYPE);
         typeName = XContentMapValues.nodeStringValue(targetSettings.get("type"), TYPE);
-        bulkSize = XContentMapValues.nodeIntegerValue(targetSettings.get("bulk_size"), 100);
+        bulkSize = XContentMapValues.nodeIntegerValue(targetSettings.get("bulk_size"), 1000);
         maxBulkRequests = XContentMapValues.nodeIntegerValue(targetSettings.get("max_bulk_requests"), 30);
         indexSettings = XContentMapValues.nodeStringValue(targetSettings.get("index_settings"), null);
         typeMapping = XContentMapValues.nodeStringValue(targetSettings.get("type_mapping"), null);
@@ -146,10 +139,11 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
         riverMouth.index(indexName)
                 .type(typeName)
                 .maxBulkActions(bulkSize)
-                .maxConcurrentBulkRequests(maxBulkRequests)
                 .acknowledge(acknowledgeBulk)
                 .versioning(versioning)
                 .client(client);
+
+
 
         // scripting ...
 
@@ -220,6 +214,11 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
             riverSource.closeWriting();
         }
         if (riverMouth != null) {
+            try {
+            riverMouth.flush();
+            } catch (IOException e) {
+                // ignore
+            }
             riverMouth.close();
         }
         closed = true; // abort only once

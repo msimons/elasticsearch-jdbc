@@ -53,6 +53,6 @@ public class JdbcClusterOperationListener implements TransportRequestHandler<Jdb
 
     @Override
     public boolean isForceExecution() {
-        return true;
+        return false;
     }
 }

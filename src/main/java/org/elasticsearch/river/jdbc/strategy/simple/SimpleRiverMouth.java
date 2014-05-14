@@ -18,12 +18,8 @@
  */
 package org.elasticsearch.river.jdbc.strategy.simple;
 
-import java.io.IOException;
-import java.sql.SQLException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -39,9 +35,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.river.jdbc.RiverMouth;
+import org.elasticsearch.river.jdbc.support.BulkProcessorHelper;
 import org.elasticsearch.river.jdbc.support.HealthMonitorThread;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.StructuredObject;
+
+import java.io.IOException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A river mouth implementation for the 'simple' strategy.
@@ -53,7 +54,7 @@ import org.elasticsearch.river.jdbc.support.StructuredObject;
  * data through this river target to ElasticSearch, without having to take precaution
  * of overwhelming the index.
  * <p/>
- * The default size of a bulk request is 100 documents, the maximum number of concurrent requests is 30.
+ * The default size of a bulk request is 1000 documents, the maximum number of concurrent requests is 30.
  *
  * @author Jörg Prante <joergprante@gmail.com>
  */
@@ -69,8 +70,8 @@ public class SimpleRiverMouth implements RiverMouth {
     protected String type;
     protected String id;
     protected Client client;
-    private int maxBulkActions = 100;
-    private int maxConcurrentBulkRequests = 30;
+    private int maxBulkActions = 1000;
+    private int maxConcurrentBulkRequests = Runtime.getRuntime().availableProcessors() * 2;
     private boolean versioning = false;
     private boolean acknowledge = false;
     private volatile boolean error;
@@ -81,7 +82,7 @@ public class SimpleRiverMouth implements RiverMouth {
 
         @Override
         public void beforeBulk(long executionId, BulkRequest request) {
-            long l = outstandingBulkRequests.incrementAndGet();
+            long l = outstandingBulkRequests.getAndIncrement();
             logger.info("({}) new bulk [{}] of [{} items], {} outstanding bulk requests",
                     context.riverName(), executionId, request.numberOfActions(), l);
         }
@@ -96,9 +97,19 @@ public class SimpleRiverMouth implements RiverMouth {
 				}
             }
         	outstandingBulkRequests.decrementAndGet();
-            logger.info("({}) bulk [{}] success [{} items] [{}ms]",
-                    context.riverName(), executionId, response.getItems().length, response.getTook().millis());
-            
+
+            if (response.hasFailures()) {
+                logger.error("bulk [{}] failed", executionId);
+                for (BulkItemResponse itemResponse : response.getItems()) {
+                    if (itemResponse.isFailed()) {
+                        logger.error("item failed id: {} opType: {} failureMessage: {})",itemResponse.getId(),itemResponse.getOpType(),itemResponse.getFailureMessage());
+                    }
+                }
+            } else {
+                logger.info("({}) bulk [{}] success [{} items] [{}ms]",
+                        context.riverName(), executionId, response.getItems().length, response.getTook().millis());
+            }
+
         }
 
         @Override
@@ -124,10 +135,12 @@ public class SimpleRiverMouth implements RiverMouth {
     public SimpleRiverMouth client(Client client) {
         this.client = client;
         this.bulk = BulkProcessor.builder(client, listener)
-                .setBulkActions(maxBulkActions-1)
+                .setBulkActions(maxBulkActions)
+
                 .setConcurrentRequests(maxConcurrentBulkRequests)
-                .setFlushInterval(TimeValue.timeValueSeconds(1))
+                .setFlushInterval(TimeValue.timeValueSeconds(30))
                 .build();
+
 
         //Monitor cluster health in separate thread
         healthThread = new HealthMonitorThread(client);
@@ -252,9 +265,7 @@ public class SimpleRiverMouth implements RiverMouth {
                  .type(type())
                  .id(id())
                  .source(object.build());
-         if (create) {
-             request.create(create);
-         }
+
          if (object.meta(StructuredObject.VERSION) != null && versioning) {
              request.versionType(VersionType.EXTERNAL)
                      .version(Long.parseLong(object.meta(StructuredObject.VERSION)));
@@ -327,11 +338,14 @@ public class SimpleRiverMouth implements RiverMouth {
     }
 
     @Override
-    public void flush() throws IOException {
+    public synchronized void flush() throws IOException {
         if (error) {
             return;
         }
-        //bulk.flush();
+        logger.info("flushing bulk processor");
+        // hacked BulkProcessor to execute the submission of remaining docs. Wait always 30 seconds at most.
+        BulkProcessorHelper.flush(bulk);
+        BulkProcessorHelper.waitFor(bulk, TimeValue.timeValueSeconds(60));
     }
 
     @Override
