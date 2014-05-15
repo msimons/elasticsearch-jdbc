@@ -30,8 +30,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.river.jdbc.RiverSource;
-import org.elasticsearch.river.jdbc.support.ConnectionFactory;
-import org.elasticsearch.river.jdbc.support.JDBCSettings;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.ValueListener;
 
@@ -161,7 +159,9 @@ public class SimpleRiverSource implements RiverSource {
             while (retries > 0) {
                 retries--;
                 try {
-                    readConnection = ConnectionFactory.getInstance().getConnection(new JDBCSettings(driver,url,user,password));
+                    readConnection = DriverManager.getConnection(url, user, password);
+                    // disabled connection pooling temporary for stability (broken connections)
+                    //ConnectionFactory.getInstance().getConnection(new JDBCSettings(driver,url,user,password));
                     // Postgresql cursor mode condition:
                     // fetchsize > 0, no scrollable result set, no auto commit, no holdable cursors over commit
                     // https://github.com/pgjdbc/pgjdbc/blob/master/org/postgresql/jdbc2/AbstractJdbc2Statement.java#L514
@@ -215,7 +215,10 @@ public class SimpleRiverSource implements RiverSource {
             while (retries > 0) {
                 retries--;
                 try {
-                    writeConnection = ConnectionFactory.getInstance().getConnection(new JDBCSettings(driver,url,user,password));
+                    writeConnection =  DriverManager.getConnection(url, user, password);
+
+                    // disabled connection pooling temporary for stability (broken connections)
+                    //ConnectionFactory.getInstance().getConnection(new JDBCSettings(driver,url,user,password));
                     if (context != null) {
                         // many drivers don't like autocommit=true
                        // writeConnection.setAutoCommit(context.autocommit());
