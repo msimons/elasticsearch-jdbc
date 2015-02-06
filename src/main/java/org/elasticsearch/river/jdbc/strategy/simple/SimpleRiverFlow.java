@@ -18,18 +18,11 @@
  */
 package org.elasticsearch.river.jdbc.strategy.simple;
 
-import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-
-import java.io.IOException;
-import java.util.Date;
-import java.util.Map;
-
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,6 +34,14 @@ import org.elasticsearch.river.jdbc.RiverSource;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.StructuredObject;
 import org.elasticsearch.search.SearchHit;
+
+import java.io.IOException;
+import java.util.Date;
+import java.util.Map;
+
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
  * A river flow implementation for the 'simple' strategy.
@@ -226,7 +227,7 @@ public class SimpleRiverFlow implements RiverFlow {
         //Build document
         XContentBuilder builder = jsonBuilder();
         builder.startObject().startObject("jdbc");
-        builder.field("lastUpdate", new Date());
+        builder.field("lastUpdate", ISODateTimeFormat.dateTime().print(System.currentTimeMillis()));
         builder.field("running", running);
         builder.endObject().endObject();
 
