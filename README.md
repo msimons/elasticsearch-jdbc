@@ -1,14 +1,20 @@
-[![wercker status](https://app.wercker.com/status/923fd9217a917db5b3c415e8b696b5c7/m "wercker status")](https://app.wercker.com/project/bykey/923fd9217a917db5b3c415e8b696b5c7)
-.. image:: ../../../elasticsearch-river-jdbc/raw/master/src/site/origami.png
+![Alt text](../../../elasticsearch-river-jdbc/raw/master/src/site/origami.png "Optional title")
 
 Elasticsearch JDBC river
 ========================
+[![wercker status](https://app.wercker.com/status/923fd9217a917db5b3c415e8b696b5c7/m "wercker status")](https://app.wercker.com/project/bykey/923fd9217a917db5b3c415e8b696b5c7)
 
 The Java Database Connection (JDBC) `river <http://www.elasticsearch.org/guide/reference/river/>`_  allows to fetch data from JDBC sources for indexing into `Elasticsearch <http://www.elasticsearch.org>`_. 
 
 It is implemented as an `Elasticsearch plugin <http://www.elasticsearch.org/guide/reference/modules/plugins.html>`_.
 
 The relational data is internally transformed into structured JSON objects for the schema-less indexing model in Elasticsearch. 
+
+This fork of the elasticsearch JDBC river is supporting the following river types:
+- Oneshot
+- Simple
+- Table
+-
 
 Creating a JDBC river is easy::
 
@@ -31,38 +37,10 @@ Prerequisites::
   Elasticsearch 1.4.2+
   a JDBC driver jar of your database
 
-=============  =========  =================  ============================================================
-ES version     Plugin     Release date       Command
--------------  ---------  -----------------  ------------------------------------------------------------
-1.4.2+          **2.0.23**  February 20, 2015
-=============  =========  =================  ============================================================
+| ES version   |     Plugin version      |  Release date |
+|----------|:-------------:|------:|
+| 1.4.2+ |  **2.0.23** | February 20, 2015 |
 
-Documentation
--------------
-
-`Quickstart <../../../elasticsearch-river-jdbc/wiki/Quickstart>`_
-
-`JDBC river parameters <../../../elasticsearch-river-jdbc/wiki/JDBC-River-parameters>`_
-
-`Strategies <../../../elasticsearch-river-jdbc/wiki/Strategies>`_
-
-`Moving a table <../../../elasticsearch-river-jdbc/wiki/Moving-a-table-into-Elasticsearch>`_
-
-`Labeled columns <../../../elasticsearch-river-jdbc/wiki/Labeled-columns>`_
-
-`Structured objects <../../../elasticsearch-river-jdbc/wiki/Structured-Objects>`_
-
-`RiverSource, RiverMouth, RiverFlow <../../../elasticsearch-river-jdbc/wiki/RiverSource,-RiverMouth,-and-RiverFlow>`_
-
-`Bulk indexing <../../../elasticsearch-river-jdbc/wiki/Bulk-indexing>`_
-
-`Updates with versioning <../../../elasticsearch-river-jdbc/wiki/Updates-with-versioning>`_
-
-`Updates with database table <../../../elasticsearch-river-jdbc/wiki/Updates-with-database-table>`_
-
-`Setting up the river with PostgreSQL <../../../elasticsearch-river-jdbc/wiki/Step-by-step-recipe-for-setting-up-the-river-with-PostgreSQL>`_
-
-`Loading from CSV <../../../elasticsearch-river-jdbc/wiki/Loading-CSV>`_
 
 License
 =======
