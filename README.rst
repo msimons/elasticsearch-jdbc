@@ -3,6 +3,8 @@
 Elasticsearch JDBC river
 ========================
 
+[![wercker status](https://app.wercker.com/status/923fd9217a917db5b3c415e8b696b5c7/m "wercker status")](https://app.wercker.com/project/bykey/923fd9217a917db5b3c415e8b696b5c7)
+
 The Java Database Connection (JDBC) `river <http://www.elasticsearch.org/guide/reference/river/>`_  allows to fetch data from JDBC sources for indexing into `Elasticsearch <http://www.elasticsearch.org>`_. 
 
 It is implemented as an `Elasticsearch plugin <http://www.elasticsearch.org/guide/reference/modules/plugins.html>`_.
