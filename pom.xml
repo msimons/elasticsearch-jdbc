@@ -105,18 +105,21 @@
             <version>11.2.0.3.0</version>
             <scope>provided</scope>
     	</dependency>
-    	
+
+        <!-- we need xdb6 for jdbc 4.0 support -->
     	<dependency>
             <groupId>com.oracle</groupId>
             <artifactId>xdb_g</artifactId>
             <version>11.2.0.1.0</version>
-    	</dependency>
+            <scope>provided</scope>
+        </dependency>
     	
 	 	<dependency>
             <groupId>com.oracle</groupId>
             <artifactId>xmlparserv2</artifactId>
             <version>11.2.0.1.0</version>
-    	</dependency>
+            <scope>provided</scope>
+        </dependency>
 
         <dependency>
             <groupId>commons-pool</groupId>

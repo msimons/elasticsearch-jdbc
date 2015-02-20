@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.river.jdbc.strategy.simple;
 
-import oracle.jdbc.OracleResultSet;
-import oracle.sql.OPAQUE;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.io.Streams;
@@ -37,6 +35,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.security.NoSuchAlgorithmException;
 import java.sql.*;
@@ -1145,21 +1145,54 @@ public class SimpleRiverSource implements RiverSource {
                 return result.wasNull() ? null : o;
             }
             case Types.SQLXML: {
-            	if((result instanceof OracleResultSet)){
-            		OracleResultSet oracleResult = (OracleResultSet) result;
-            		
-            		OPAQUE op = oracleResult.getOPAQUE(i);
-            		if (op == null) {
-            			if (logger.isDebugEnabled()) {
-            				//logger.debug("returning null column: {}", i);
-            			}
-            			return null;
-            		}
+            	if(result.getClass().getName().equals("oracle.jdbc.driver.OracleResultSetImpl")){
+            		//OracleResultSet oracleResult = (OracleResultSet) result;
 
-            		oracle.xdb.XMLType xt = oracle.xdb.XMLType.createXML(op);
-            		String xml = xt.getClobVal().stringValue();
-            		xt.close();
-            		
+                    String xml = null;
+                    try {
+                        Class orsClazz = Class.forName("oracle.jdbc.OracleResultSet");
+                        Class[] types = { int.class};
+                        Method m = orsClazz.getMethod("getOPAQUE",types);
+
+                        Object op = m.invoke(result,i);
+
+                        if (op == null) {
+                            if (logger.isDebugEnabled()) {
+                                //logger.debug("returning null column: {}", i);
+                            }
+                            return null;
+                        }
+
+                        Class xmlTypeClazz = Class.forName("oracle.xdb.XMLType");
+                        Class opaqueClazz = Class.forName("oracle.sql.OPAQUE");
+
+                        m = xmlTypeClazz.getMethod("createXML",opaqueClazz);
+
+                        Object xt = m.invoke(null,op);
+
+                        m = xmlTypeClazz.getMethod("getClobVal");
+                        Object clobval = m.invoke(xt);
+
+                        Class clobvalClazz = Class.forName("oracle.sql.CLOB");
+                        m = clobvalClazz.getMethod("stringValue");
+
+                        xml = (String) m.invoke(clobval);
+
+                        m = xmlTypeClazz.getMethod("close");
+                        m.invoke(xt);
+
+
+
+                    } catch (ClassNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (NoSuchMethodException e) {
+                        e.printStackTrace();
+                    } catch (InvocationTargetException e) {
+                        e.printStackTrace();
+                    } catch (IllegalAccessException e) {
+                        e.printStackTrace();
+                    }
+
             		
             		if(xml != null) { 
             			xml = XML_PATTERN.matcher(xml).replaceAll(" ");

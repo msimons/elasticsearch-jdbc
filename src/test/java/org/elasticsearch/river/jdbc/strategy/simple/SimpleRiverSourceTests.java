@@ -33,6 +33,7 @@ import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -75,6 +76,39 @@ public class SimpleRiverSourceTests extends AbstractRiverTest {
         source.close(results);
         source.close(statement);
     }
+
+    @Test
+    @Parameters({"sql4"})
+    public void testSqlXmlType(String sql) throws Exception {
+        PreparedStatement statement = source.prepareQuery(sql);
+        ResultSet results = source.executeQuery(statement);
+
+        source.nextRow(results,new ValueListener() {
+            @Override
+            public ValueListener keys(List<String> keys) {
+                return null;
+            }
+
+            @Override
+            public ValueListener values(List<? extends Object> values) throws IOException {
+                return null;
+            }
+
+            @Override
+            public ValueListener reset() throws IOException {
+                return null;
+            }
+
+            @Override
+            public MessageDigest digest() {
+                return null;
+            }
+        });
+
+        source.close(results);
+        source.close(statement);
+    }
+
 
     @Test
     @Parameters({"sql2", "n"})
