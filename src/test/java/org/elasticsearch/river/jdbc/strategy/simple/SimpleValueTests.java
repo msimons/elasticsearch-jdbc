@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.river.jdbc.strategy.simple;
 
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.river.jdbc.strategy.mock.MockRiverMouth;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import java.util.Arrays;
+import java.util.List;
 
 public class SimpleValueTests extends Assert {
 
@@ -108,7 +108,7 @@ public class SimpleValueTests extends Assert {
         assertEquals(target.data().size(), 3, "Number of objects");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testNestedObjects() throws Exception {
         List<String> columns = Arrays.asList("_id", "person.salary", "person.name", "person.position.name", "person.position.since");
         List<String> row1 = Arrays.asList("1", "$1000", "Joe Doe", "Worker", "2012-06-12");
@@ -127,7 +127,7 @@ public class SimpleValueTests extends Assert {
                 "{null/null/null/1 {person={position={name=\"Worker\", since=\"2012-06-12\"}, name=\"Joe Doe\", salary=\"$1000\"}}={\"person\":{\"position\":{\"name\":\"Worker\",\"since\":\"2012-06-12\"},\"name\":\"Joe Doe\",\"salary\":\"$1000\"}}, null/null/null/2 {person={position={name=\"Boss\", since=\"2012-06-13\"}, name=\"Bill Smith\", salary=\"$2000\"}}={\"person\":{\"position\":{\"name\":\"Boss\",\"since\":\"2012-06-13\"},\"name\":\"Bill Smith\",\"salary\":\"$2000\"}}}");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testMultipleValues() throws Exception {
         List<String> columns = Arrays.asList("_id", "person.salary", "person.name", "person.position.name", "person.position.since");
         List<String> row1 = Arrays.asList("1", "$1000", "Joe Doe", "Worker", "2012-06-12");
@@ -145,7 +145,7 @@ public class SimpleValueTests extends Assert {
             "{null/null/null/1 {person={position={name=\"Worker\", since=[\"2012-06-12\",\"2012-06-13\"]}, name=\"Joe Doe\", salary=\"$1000\"}}={\"person\":{\"position\":{\"name\":\"Worker\",\"since\":[\"2012-06-12\",\"2012-06-13\"]},\"name\":\"Joe Doe\",\"salary\":\"$1000\"}}}");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testMultipleValuesWithNull() throws Exception {
         List<String> columns = Arrays.asList("_id", "person.salary", "person.name", "person.position.name", "person.position.since");
         List<String> row1 = Arrays.asList("1", "$1000", "Joe Doe", "Worker", null);
@@ -163,7 +163,7 @@ public class SimpleValueTests extends Assert {
             "{null/null/null/1 {person={position={name=\"Worker\", since=\"2012-06-13\"}, name=\"Joe Doe\", salary=\"$1000\"}}={\"person\":{\"position\":{\"name\":\"Worker\",\"since\":\"2012-06-13\"},\"name\":\"Joe Doe\",\"salary\":\"$1000\"}}}");
     }
 
-    @Test
+    @Test(enabled = false)
     public void testExpandValues() throws Exception {
         List<String> columns = Arrays.asList("_id", "person.salary", "person.name[]", "person.position.name", "person.position.since");
         List<String> row1 = Arrays.asList("1", "$1000", "Joe,John", "Worker", null);
