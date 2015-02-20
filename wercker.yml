@@ -6,4 +6,4 @@ build:
     - script:
         name: show base information
         code: |
-          mvn install
+          mvn install -Pderby
