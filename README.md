@@ -14,7 +14,6 @@ This fork of the elasticsearch JDBC river is supporting the following river type
 - Oneshot
 - Simple
 - Table
--
 
 Creating a JDBC river is easy::
 
