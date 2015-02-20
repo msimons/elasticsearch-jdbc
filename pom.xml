@@ -99,14 +99,14 @@
             <optional>true</optional>
         </dependency>
         
-        <dependency>
+       <!-- <dependency>
             <groupId>com.oracle</groupId>
             <artifactId>ojdbc6_g</artifactId>
             <version>11.2.0.3.0</version>
             <scope>provided</scope>
     	</dependency>
 
-        <!-- we need xdb6 for jdbc 4.0 support -->
+         we need xdb6 for jdbc 4.0 support
     	<dependency>
             <groupId>com.oracle</groupId>
             <artifactId>xdb_g</artifactId>
@@ -119,7 +119,7 @@
             <artifactId>xmlparserv2</artifactId>
             <version>11.2.0.1.0</version>
             <scope>provided</scope>
-        </dependency>
+        </dependency>  -->
 
         <dependency>
             <groupId>commons-pool</groupId>
