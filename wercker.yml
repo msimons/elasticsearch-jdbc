@@ -1,4 +1,4 @@
-box: java8-oracle
+box: mihkels/java8-oracle@0.0.1
 # Build definition
 build:
   # The steps that will be executed on build
