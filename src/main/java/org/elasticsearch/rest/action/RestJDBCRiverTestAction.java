@@ -47,13 +47,12 @@ public class RestJDBCRiverTestAction extends AbstractJdbcRiverRestAction {
         Settings settings, Client client, RestController controller, TransportService transportService, JdbcClusterOperationListener listener,
         JdbcLocalOperationDispatcher localDispatcher, JdbcClusterOperationDispatcher clusterDispatcher
     ) {
-        super(settings, client, transportService, listener, localDispatcher, clusterDispatcher);
+        super(settings, controller,client, transportService, listener, localDispatcher, clusterDispatcher);
         controller.registerHandler(RestRequest.Method.GET, "/_river/{river}/_test", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
-
+    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
         //Get and check river name parameter
         String riverName = request.param("river");
         if (riverName == null || riverName.isEmpty()) {
@@ -63,7 +62,6 @@ public class RestJDBCRiverTestAction extends AbstractJdbcRiverRestAction {
 
         //Execute
         execute(request, channel, new JdbcTestOperation(riverName));
-
     }
 
 }

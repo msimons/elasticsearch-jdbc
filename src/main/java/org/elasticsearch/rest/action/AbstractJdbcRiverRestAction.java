@@ -1,18 +1,11 @@
 package org.elasticsearch.rest.action;
 
-import java.io.IOException;
-
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.XContentRestResponse;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.rest.dispatch.DispatchException;
 import org.elasticsearch.rest.dispatch.JdbcOperationDispatcher;
@@ -20,6 +13,8 @@ import org.elasticsearch.rest.dispatch.cluster.JdbcClusterOperationListener;
 import org.elasticsearch.rest.operation.JdbcOperationResponse;
 import org.elasticsearch.rest.operation.JdbcRestOperation;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Abstract parent of all JDBC River REST actions, performing the actual operation.
@@ -30,11 +25,13 @@ public abstract class AbstractJdbcRiverRestAction extends BaseRestHandler {
     private static final ESLogger LOG = ESLoggerFactory.getLogger(AbstractJdbcRiverRestAction.class.getName());
     private static volatile boolean clusterListenerRegistered = false;
 
+    private RestController controller;
     private final JdbcOperationDispatcher localDispatcher, clusterDispatcher;
 
     /**
      * Constructor.
      * @param settings Setting instance.
+     * @param controller RestController instance
      * @param client Client instance.
      * @param transportService TransportService instance.
      * @param listener JdbcClusterOperationListener instance.
@@ -42,12 +39,14 @@ public abstract class AbstractJdbcRiverRestAction extends BaseRestHandler {
      * @param clusterDispatcher Cluster operation dispatcher.
      */
     protected AbstractJdbcRiverRestAction(
-        Settings settings, Client client, TransportService transportService, JdbcClusterOperationListener listener,
+        Settings settings, RestController controller, Client client, TransportService transportService, JdbcClusterOperationListener listener,
         JdbcOperationDispatcher localDispatcher, JdbcOperationDispatcher clusterDispatcher
     ) {
-        super(settings, client);
+
+        super(settings, controller, client);
         this.localDispatcher = localDispatcher;
         this.clusterDispatcher = clusterDispatcher;
+        this.controller = controller;
 
         if (!clusterListenerRegistered) {
             LOG.debug("Registering JdbcClusterOperationListener at TransportService with action '{}'", JdbcClusterOperationListener.ACTION);
@@ -93,6 +92,7 @@ public abstract class AbstractJdbcRiverRestAction extends BaseRestHandler {
      */
     protected void respond(boolean success, RestRequest request, RestChannel channel, String message, RestStatus status) {
         try {
+
             XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
             builder.startObject();
             builder.field("success", success);
@@ -100,7 +100,8 @@ public abstract class AbstractJdbcRiverRestAction extends BaseRestHandler {
                 builder.field("message", message);
             }
             builder.endObject();
-            channel.sendResponse(new XContentRestResponse(request, status, builder));
+
+            channel.sendResponse(new BytesRestResponse(status,builder));
         } catch (IOException e) {
             errorResponse(request, channel, e);
         }
@@ -114,7 +115,7 @@ public abstract class AbstractJdbcRiverRestAction extends BaseRestHandler {
      */
     protected void errorResponse(RestRequest request, RestChannel channel, Throwable e) {
         try {
-            channel.sendResponse(new XContentThrowableRestResponse(request, e));
+            channel.sendResponse(new BytesRestResponse(channel,e));
         } catch (IOException e1) {
             logger.error("Failed to send failure response", e1);
         }

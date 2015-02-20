@@ -46,15 +46,15 @@ public class RestJDBCRiverInduceAction extends AbstractJdbcRiverRestAction {
 
     @Inject
     public RestJDBCRiverInduceAction(
-        Settings settings, Client client, RestController controller, TransportService transportService, JdbcClusterOperationListener listener,
+        Settings settings, RestController controller, Client client, TransportService transportService, JdbcClusterOperationListener listener,
         JdbcLocalOperationDispatcher localDispatcher, JdbcClusterOperationDispatcher clusterDispatcher
     ) {
-        super(settings, client, transportService, listener, localDispatcher, clusterDispatcher);
+        super(settings, controller, client, transportService, listener, localDispatcher, clusterDispatcher);
         controller.registerHandler(RestRequest.Method.POST, "/_river/{river}/_induce", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
 
         //Get and check river name parameter
         String riverName = request.param("river");
@@ -65,7 +65,7 @@ public class RestJDBCRiverInduceAction extends AbstractJdbcRiverRestAction {
 
         //Execute
         execute(request, channel, new JdbcInduceOperation(riverName));
-
     }
+
 
 }

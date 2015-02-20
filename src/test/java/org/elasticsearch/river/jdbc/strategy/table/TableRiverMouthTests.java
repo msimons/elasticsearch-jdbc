@@ -18,13 +18,6 @@
  */
 package org.elasticsearch.river.jdbc.strategy.table;
 
-import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.river.RiverName;
@@ -37,6 +30,14 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 public class TableRiverMouthTests extends AbstractRiverNodeTest {
 
@@ -67,8 +68,10 @@ public class TableRiverMouthTests extends AbstractRiverNodeTest {
         RiverSettings settings = riverSettings(riverResource);
         JDBCRiver river = new JDBCRiver(new RiverName(INDEX, TYPE), settings, "_river", client);
         river.once();
-        Thread.sleep(10000L); // let the good things happen
-        
+        Thread.sleep(15000L); // let the good things happen
+
+        client.admin().indices().prepareRefresh(INDEX).execute().actionGet();
+
         SearchHits hits = client.prepareSearch(INDEX).setTypes(TYPE).addField("name").setSize(80).execute().actionGet().getHits();
         assertEquals(hits.getTotalHits(), 80);
         boolean updateSucceeded = false;

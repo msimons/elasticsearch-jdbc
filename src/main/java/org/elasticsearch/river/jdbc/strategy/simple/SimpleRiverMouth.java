@@ -35,7 +35,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.river.jdbc.RiverMouth;
-import org.elasticsearch.river.jdbc.support.BulkProcessorHelper;
 import org.elasticsearch.river.jdbc.support.HealthMonitorThread;
 import org.elasticsearch.river.jdbc.support.RiverContext;
 import org.elasticsearch.river.jdbc.support.StructuredObject;
@@ -343,9 +342,7 @@ public class SimpleRiverMouth implements RiverMouth {
             return;
         }
         logger.info("flushing bulk processor");
-        // hacked BulkProcessor to execute the submission of remaining docs. Wait always 30 seconds at most.
-        BulkProcessorHelper.flush(bulk);
-        BulkProcessorHelper.waitFor(bulk, TimeValue.timeValueSeconds(60));
+        bulk.flush();
     }
 
     @Override
@@ -360,22 +357,22 @@ public class SimpleRiverMouth implements RiverMouth {
             return;
         }
 
-        if (client.admin().indices().prepareExists(index).execute().actionGet().isExists()) {
+        if (client.admin().indices().prepareExists(context.riverIndexName()).execute().actionGet().isExists()) {
             if (Strings.hasLength(settings)) {
-                client.admin().indices().prepareUpdateSettings(index).setSettings(settings).execute().actionGet();
+                client.admin().indices().prepareUpdateSettings(context.riverIndexName()).setSettings(settings).execute().actionGet();
             }
             if (Strings.hasLength(mapping)) {
-                client.admin().indices().preparePutMapping(index).setType(type).setSource(mapping).execute().actionGet();
+                client.admin().indices().preparePutMapping(context.riverIndexName()).setType(type).setSource(mapping).execute().actionGet();
             }
             return;
         }
-        CreateIndexRequestBuilder builder = client.admin().indices().prepareCreate(index);
+        CreateIndexRequestBuilder builder = client.admin().indices().prepareCreate(context.riverIndexName());
         if (Strings.hasLength(settings)) {
             builder.setSettings(settings);
         }
         builder.execute().actionGet();
         if (Strings.hasLength(mapping)) {
-            client.admin().indices().preparePutMapping(index).setType(type).setSource(mapping).execute().actionGet();
+            client.admin().indices().preparePutMapping(context.riverIndexName()).setType(type).setSource(mapping).execute().actionGet();
         }
     }
 

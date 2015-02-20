@@ -180,7 +180,6 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
                 url, driver, strategy, indexName, typeName);
         try {
             riverFlow.startDate(new Date());
-            riverMouth.createIndexIfNotExists(indexSettings, typeMapping);
         } catch (Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                 riverFlow.startDate(null);
@@ -192,6 +191,7 @@ public class JDBCRiver extends AbstractRiverComponent implements River {
                 return;
             }
         }
+
         thread = EsExecutors.daemonThreadFactory(settings.globalSettings(), "JDBC river [" + riverName.name() + '/' + strategy + ']')
                 .newThread(riverFlow);
         thread.start();
