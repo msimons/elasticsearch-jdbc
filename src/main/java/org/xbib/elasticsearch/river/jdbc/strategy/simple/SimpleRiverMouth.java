@@ -238,6 +238,9 @@ public class SimpleRiverMouth<RC extends SimpleRiverContext> implements RiverMou
         if (object.meta(ControlKeys._ttl.name()) != null) {
             request.ttl(Long.parseLong(object.meta(ControlKeys._ttl.name())));
         }
+
+        registerJobCounter(object);
+
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk index action {}", request.source().toUtf8());
         }
@@ -279,11 +282,22 @@ public class SimpleRiverMouth<RC extends SimpleRiverContext> implements RiverMou
         if (object.meta(ControlKeys._parent.name()) != null) {
             request.parent(object.meta(ControlKeys._parent.name()));
         }
+
+        registerJobCounter(object);
+
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk delete action {}/{}/{}", request.index(), request.type(), request.id());
         }
         if (ingest != null) {
             ingest.bulkDelete(request);
+        }
+    }
+
+    private void registerJobCounter(IndexableObject object) {
+        if (object.meta(ControlKeys._job.name()) != null) {
+            int jobCounter = Integer.parseInt(object.meta(ControlKeys._job.name()));
+            if(context.getRiverState().getCounter() == null || jobCounter > context.getRiverState().getCounter())
+                context.getRiverState().setCounter(jobCounter);
         }
     }
 
