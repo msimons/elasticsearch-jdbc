@@ -235,15 +235,16 @@
                 <artifactId>maven-project-info-reports-plugin</artifactId>
                 <version>2.7</version>
             </plugin>
-            <plugin>
+            <!--<plugin>
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>2.9.1</version>
                 <configuration>
                     <encoding>${project.build.sourceEncoding}</encoding>
                     <locale>en</locale>
                     <linksource>true</linksource>
-                    <validateLinks>true</validateLinks>
-                    <bottom><!-- drop copyright line --></bottom>
+                    <validateLinks>true<
+                    /validateLinks>
+                    <bottom> drop copyright line </bottom>
                 </configuration>
                 <executions>
                     <execution>
@@ -253,7 +254,7 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
+            </plugin>    -->
             <plugin>
                 <artifactId>maven-site-plugin</artifactId>
                 <version>3.4</version>
@@ -583,14 +584,14 @@
             </activation>
             <build>
                 <plugins>
-                    <plugin>
+                   <!-- <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <configuration>
                             <javadocExecutable>/Library/Java/JavaVirtualMachines/jdk1.8.0.jdk/Contents/Home/bin/javadoc</javadocExecutable>
                             <additionalparam>-Xdoclint:none</additionalparam>
                         </configuration>
-                    </plugin>
+                    </plugin>   -->
                 </plugins>
             </build>
         </profile>
