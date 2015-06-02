@@ -31,6 +31,9 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
 
     private final static Pattern p = Pattern.compile("^(.*)\\[(.*?)\\]$");
 
+    public static final String STRING_NILL_VALUE = "_null_";
+    public static final Double DOUBLE_NILL_VALUE = -0.1;
+
     /**
      * The current structured object
      */
@@ -142,6 +145,11 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
         }
         // create current object from values by sequentially merging the values
         for (int i = 0; i < keys.size() && i < values.size(); i++) {
+
+            if(STRING_NILL_VALUE.equals(values.get(i)) || DOUBLE_NILL_VALUE.equals(values.get(i))) {
+                continue;
+            }
+
             Map map = null;
             try {
                 // JSON content?
@@ -172,7 +180,10 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
         } else if (ControlKeys._parent.name().equals(k)) {
             current.meta(k.toString(), v.toString());
         } else if (ControlKeys._timestamp.name().equals(k)) {
-            current.meta(k.toString(), v.toString());
+            current.meta(k.toString(
+
+
+            ), v.toString());
         } else if (ControlKeys._ttl.name().equals(k)) {
             current.meta(k.toString(), v.toString());
         } else if (ControlKeys._job.name().equals(k)) {
