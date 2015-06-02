@@ -25,39 +25,15 @@ import org.xbib.elasticsearch.plugin.jdbc.util.SQLCommand;
 import org.xbib.elasticsearch.river.jdbc.RiverSource;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.CallableStatement;
-import java.sql.Clob;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
+import java.sql.*;
 import java.sql.Date;
-import java.sql.DriverManager;
-import java.sql.NClob;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLDataException;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLNonTransientConnectionException;
-import java.sql.SQLRecoverableException;
-import java.sql.SQLXML;
-import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.sql.Types;
 import java.text.NumberFormat;
 import java.text.ParseException;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Properties;
-import java.util.TimeZone;
+import java.util.*;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.collect.Lists.newLinkedList;
 
@@ -69,6 +45,8 @@ import static org.elasticsearch.common.collect.Lists.newLinkedList;
  * There are two channels open, one for reading the database, one for writing.
  */
 public class SimpleRiverSource<RC extends SimpleRiverContext> implements RiverSource<RC> {
+
+    public static final Pattern XML_PATTERN = Pattern.compile("<[^>]*>");
 
     private final static ESLogger logger = ESLoggerFactory.getLogger("river.jdbc.SimpleRiverSource");
 
@@ -827,7 +805,10 @@ public class SimpleRiverSource<RC extends SimpleRiverContext> implements RiverSo
         }
         if (listener != null) {
             listener.values(values);
+
         }
+
+
     }
 
     /**
@@ -1538,10 +1519,68 @@ public class SimpleRiverSource<RC extends SimpleRiverContext> implements RiverSo
             }
 
             case Types.SQLXML: {
+                if(result.getClass().getName().equals("oracle.jdbc.driver.OracleResultSetImpl")){
+                    //OracleResultSet oracleResult = (OracleResultSet) result;
+
+                    String xml = null;
+                    try {
+                        Class orsClazz = Class.forName("oracle.jdbc.OracleResultSet");
+                        Class[] types = { int.class};
+                        Method m = orsClazz.getMethod("getOPAQUE",types);
+
+                        Object op = m.invoke(result,i);
+
+                        if (op == null) {
+                            if (logger.isDebugEnabled()) {
+                                //logger.debug("returning null column: {}", i);
+                            }
+                            return null;
+                        }
+
+                        Class xmlTypeClazz = Class.forName("oracle.xdb.XMLType");
+                        Class opaqueClazz = Class.forName("oracle.sql.OPAQUE");
+
+                        m = xmlTypeClazz.getMethod("createXML",opaqueClazz);
+
+                        Object xt = m.invoke(null,op);
+
+                        m = xmlTypeClazz.getMethod("getClobVal");
+                        Object clobval = m.invoke(xt);
+
+                        Class clobvalClazz = Class.forName("oracle.sql.CLOB");
+                        m = clobvalClazz.getMethod("stringValue");
+
+                        xml = (String) m.invoke(clobval);
+
+                        m = xmlTypeClazz.getMethod("close");
+                        m.invoke(xt);
+
+
+
+                    } catch (ClassNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (NoSuchMethodException e) {
+                        e.printStackTrace();
+                    } catch (InvocationTargetException e) {
+                        e.printStackTrace();
+                    } catch (IllegalAccessException e) {
+                        e.printStackTrace();
+                    }
+
+
+
+                    if(xml != null) {
+                        xml = XML_PATTERN.matcher(xml).replaceAll(" ");
+                    }
+
+                    logger.trace("returning '{}' column: {} ",xml,i);
+
+                    return xml;
+                }
+
                 SQLXML xml = result.getSQLXML(i);
                 return xml != null ? xml.getString() : null;
             }
-
             case Types.NULL: {
                 return null;
             }
