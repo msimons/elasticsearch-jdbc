@@ -40,13 +40,7 @@ import org.xbib.elasticsearch.plugin.jdbc.state.RiverStatesMetaData;
 import org.xbib.elasticsearch.plugin.jdbc.util.RiverServiceLoader;
 import org.xbib.elasticsearch.river.jdbc.RiverFlow;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintStream;
-import java.io.Reader;
-import java.io.Writer;
+import java.io.*;
 import java.security.Security;
 import java.util.Arrays;
 import java.util.List;
@@ -154,7 +148,18 @@ public class JDBCFeeder {
         this.ingestFactory = createIngestFactory(settings);
         // out private ingest, needed for having a client in the river flow
         this.ingest = ingestFactory.create();
-        riverFlow.setRiverName(new RiverName("jdbc", "feeder"))
+
+        String type = "jdbc";
+        if (spec.containsKey("type")) {
+            type = (String) spec.get("type");
+        }
+
+        String name = "feeder";
+        if (spec.containsKey("name")) {
+            name = (String) spec.get("name");
+        }
+
+        riverFlow.setRiverName(new RiverName(type, name))
                 .setSettings(settings)
                 .setClient(ingest.client())
                 .setIngestFactory(ingestFactory)

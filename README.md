@@ -255,6 +255,8 @@ Quartz cron expression format (see below).
 
 `interval` - a time value for the delay between two river runs (default: not set)
 
+`name` - the name of the feeder (will be used in the status monitoring)
+
 `max_bulk_actions` - the length of each bulk index request submitted (default: 10000)
 
 `max_concurrent_bulk_requests` - the maximum number of concurrent bulk requests (default: 2 * number of CPU cores)
@@ -344,7 +346,6 @@ Quartz cron expression format (see below).
 
 `connection_properties` - a map for the connection properties for driver connection creation. Default is `null`
 
-
 `index` - the Elasticsearch index used for indexing
 
 `type` - the Elasticsearch type of the index used for indexing
@@ -356,6 +357,7 @@ Quartz cron expression format (see below).
 ## Overview about the default parameter settings
 
 	{
+	    "name" : "My example feeder"
         "strategy" : "simple",
         "schedule" : null,
         "interval" : 0L,
