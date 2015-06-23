@@ -17,6 +17,7 @@ package org.xbib.elasticsearch.river.jdbc.strategy.simple;
 
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableSet;
@@ -218,34 +219,44 @@ public class SimpleRiverMouth<RC extends SimpleRiverContext> implements RiverMou
         if (Strings.hasLength(object.id())) {
             setId(object.id());
         }
-        IndexRequest request = Requests.indexRequest(this.index)
+
+        IndexRequest indexRequest = Requests.indexRequest(this.index)
                 .type(this.type)
                 .id(getId())
                 .source(object.build());
+
         if (object.meta(ControlKeys._version.name()) != null) {
-            request.versionType(VersionType.EXTERNAL)
+            indexRequest.versionType(VersionType.EXTERNAL)
                     .version(Long.parseLong(object.meta(ControlKeys._version.name())));
         }
         if (object.meta(ControlKeys._routing.name()) != null) {
-            request.routing(object.meta(ControlKeys._routing.name()));
+            indexRequest.routing(object.meta(ControlKeys._routing.name()));
         }
         if (object.meta(ControlKeys._parent.name()) != null) {
-            request.parent(object.meta(ControlKeys._parent.name()));
+            indexRequest.parent(object.meta(ControlKeys._parent.name()));
         }
         if (object.meta(ControlKeys._timestamp.name()) != null) {
-            request.timestamp(object.meta(ControlKeys._timestamp.name()));
+            indexRequest.timestamp(object.meta(ControlKeys._timestamp.name()));
         }
         if (object.meta(ControlKeys._ttl.name()) != null) {
-            request.ttl(Long.parseLong(object.meta(ControlKeys._ttl.name())));
+            indexRequest.ttl(Long.parseLong(object.meta(ControlKeys._ttl.name())));
         }
+
+        UpdateRequest updateRequest = ingest.client().prepareUpdate()
+                .setType(this.type)
+                .setIndex(this.index)
+                .setId(getId())
+                .setDoc(object.source())
+                .setUpsert(indexRequest)
+                .request();
 
         registerJobCounter(object);
 
         if (logger.isTraceEnabled()) {
-            logger.trace("adding bulk index action {}", request.source().toUtf8());
+            logger.trace("adding bulk update action {}", updateRequest.doc().toString());
         }
         if (ingest != null) {
-            ingest.bulkIndex(request);
+            ingest.bulkUpdate(updateRequest);
         }
     }
 
