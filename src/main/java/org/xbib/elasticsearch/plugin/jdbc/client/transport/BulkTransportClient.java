@@ -32,11 +32,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.xbib.elasticsearch.plugin.jdbc.client.BaseIngestTransportClient;
-import org.xbib.elasticsearch.plugin.jdbc.client.BulkProcessorHelper;
-import org.xbib.elasticsearch.plugin.jdbc.client.ClientHelper;
-import org.xbib.elasticsearch.plugin.jdbc.client.Ingest;
-import org.xbib.elasticsearch.plugin.jdbc.client.Metric;
+import org.xbib.elasticsearch.plugin.jdbc.client.*;
+import org.xbib.elasticsearch.plugin.jdbc.util.MemoryManagementUtil;
 
 import java.io.IOException;
 
@@ -119,6 +116,10 @@ public class BulkTransportClient extends BaseIngestTransportClient implements In
                     metric.getCurrentIngestNumDocs().inc(n);
                     metric.getTotalIngestSizeInBytes().inc(request.estimatedSizeInBytes());
                 }
+
+                MemoryManagementUtil.logMemoryStatistics();
+                MemoryManagementUtil.freeMemoryCheckup();
+
                 logger.debug("before bulk [{}] [actions={}] [bytes={}] [concurrent requests={}]",
                         executionId,
                         request.numberOfActions(),
@@ -148,6 +149,7 @@ public class BulkTransportClient extends BaseIngestTransportClient implements In
                         metric.getFailed().count(),
                         response.getTook().millis(),
                         l);
+
                 if (n > 0) {
                     logger.error("bulk [{}] failed with {} failed items, failure message = {}",
                             executionId, n, response.buildFailureMessage());
