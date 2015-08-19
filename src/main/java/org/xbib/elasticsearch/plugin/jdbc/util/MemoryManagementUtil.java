@@ -25,19 +25,21 @@ public final class MemoryManagementUtil {
     }
 
     public static void freeMemoryCheckup() {
-        try {
-            if (Runtime.getRuntime().freeMemory() / MB < 100) {
-                logger.info("Free memory too low. Waiting for free memory... (100 MB expected)");
-                while (Runtime.getRuntime().freeMemory() / MB < 100) {
-                    Thread.sleep(100);
-                    System.gc();
-                    logger.debug("Current free memory: {} MB", Runtime.getRuntime().freeMemory() / MB);
-                }
-                logger.debug("Free memory size back to minimal 100 MB.");
-            }
-        } catch (InterruptedException e) {
-            logger.error("Interrupted sleep");
-        }
+//        try {
+//            if (Runtime.getRuntime().freeMemory() / MB < 100) {
+//                logger.info("Free memory too low. Waiting for free memory... (100 MB expected)");
+//                while (Runtime.getRuntime().freeMemory() / MB < 100) {
+//                    Thread.sleep(100);
+//                    System.gc();
+//                    logger.debug("Current free memory: {} MB", Runtime.getRuntime().freeMemory() / MB);
+//                }
+//                logger.debug("Free memory size back to minimal 100 MB.");
+//            }
+//        } catch (InterruptedException e) {
+//            logger.error("Interrupted sleep");
+//        }
+        System.gc();
+        logger.debug("Current free memory: {} MB", Runtime.getRuntime().freeMemory() / MB);
     }
 
 }
