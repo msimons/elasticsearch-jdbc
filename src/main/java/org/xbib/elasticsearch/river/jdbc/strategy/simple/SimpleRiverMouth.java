@@ -16,6 +16,7 @@
 package org.xbib.elasticsearch.river.jdbc.strategy.simple;
 
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
@@ -89,6 +90,15 @@ public class SimpleRiverMouth<RC extends SimpleRiverContext> implements RiverMou
         this.ingest = ingestFactory.create();
         this.metric = ingest.getMetric();
         return this;
+    }
+
+    @Override
+    public Object getDocumentFieldValue(String index, String type, String id, String fieldName) {
+        GetResponse response = ingest.client().prepareGet(index, type, id).setFields(fieldName).execute().actionGet();
+        if (response.isExists() && response.getField(fieldName) != null) {
+            return response.getField(fieldName).getValue();
+        }
+        return null;
     }
 
     @Override

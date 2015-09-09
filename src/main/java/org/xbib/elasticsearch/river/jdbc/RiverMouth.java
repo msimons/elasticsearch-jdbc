@@ -67,6 +67,13 @@ public interface RiverMouth<RC extends RiverContext> {
     Metric getMetric();
 
     /**
+     * Get a field value from a specific document
+     *
+     * @return the found value or null
+     */
+    Object getDocumentFieldValue(String index, String type, String id, String fieldName);
+
+    /**
      * Set index settings
      *
      * @param indexSettings the index settings

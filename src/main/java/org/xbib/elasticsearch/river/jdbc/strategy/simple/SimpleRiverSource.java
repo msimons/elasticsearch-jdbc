@@ -382,6 +382,7 @@ public class SimpleRiverSource<RC extends SimpleRiverContext> implements RiverSo
                     if (context.shouldPrepareResultSetMetadata()) {
                         prepare(results.getMetaData());
                     }
+                    logger.debug("Create RiverMouthKeyValueStreamListener with output {}", context.getRiverMouth());
                     RiverMouthKeyValueStreamListener<Object, Object> listener = new RiverMouthKeyValueStreamListener<Object, Object>()
                             .output(context.getRiverMouth())
                             .shouldIgnoreNull(context.shouldIgnoreNull());
@@ -597,6 +598,7 @@ public class SimpleRiverSource<RC extends SimpleRiverContext> implements RiverSo
             keys.add(field != null ? field : k);
             values.add(statement.getObject(pos));
         }
+
         logger.trace("merge callable statement result: keys={} values={}", keys, values);
         listener.keys(keys);
         listener.values(values);

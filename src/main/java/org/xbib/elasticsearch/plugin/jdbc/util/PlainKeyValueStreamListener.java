@@ -15,8 +15,11 @@
  */
 package org.xbib.elasticsearch.plugin.jdbc.util;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.xbib.elasticsearch.plugin.jdbc.keyvalue.KeyValueStreamListener;
+import org.xbib.elasticsearch.river.jdbc.RiverMouth;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -29,10 +32,18 @@ import java.util.regex.Pattern;
 
 public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener<K, V> {
 
+    private final static ESLogger logger = ESLoggerFactory.getLogger("org.xbib.elasticsearch.plugin.jdbc.util.PlainKeyValueStreamListener");
+
+    protected RiverMouth output;
+
+    /**
+     * The target of the river
+     */
     private final static Pattern p = Pattern.compile("^(.*)\\[(.*?)\\]$");
 
     public static final String STRING_NILL_VALUE = "_null_";
     public static final Double DOUBLE_NILL_VALUE = -0.1;
+    public static final String BACKUP_FIELD_PREFIX = "##";
 
     /**
      * The current structured object
@@ -57,6 +68,11 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
     private boolean shouldAutoGenID;
 
     private boolean shouldIgnoreNull = false;
+
+    public PlainKeyValueStreamListener output(RiverMouth output) {
+        this.output = output;
+        return this;
+    }
 
     /**
      * Set custom delimiter
@@ -146,19 +162,53 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
         // create current object from values by sequentially merging the values
         for (int i = 0; i < keys.size() && i < values.size(); i++) {
 
-            if(STRING_NILL_VALUE.equals(values.get(i)) || DOUBLE_NILL_VALUE.equals(values.get(i))) {
+            V currentFieldValue = values.get(i);
+            final K currentFieldKey = keys.get(i);
+
+            // Do not index the backup field itself
+            if (String.valueOf(currentFieldKey).startsWith(BACKUP_FIELD_PREFIX)) {
                 continue;
+            }
+
+            if(STRING_NILL_VALUE.equals(currentFieldValue) || DOUBLE_NILL_VALUE.equals(currentFieldValue)) {
+
+                // We will first check if there is a backup field before we check if the current field value. This is done
+                // in this order because the lookup for the current field value is a relative expensive call.
+
+                // Check if there is a backup field value available
+                final String backupFieldName = BACKUP_FIELD_PREFIX + currentFieldKey;
+                int backupFieldIndex = keys.indexOf(backupFieldName);
+                if (backupFieldIndex >= 0) {
+                    currentFieldValue = values.get(backupFieldIndex);
+                } else {
+                    continue;
+                }
+
+                // Check if backup field value is also a valid value.
+                if(STRING_NILL_VALUE.equals(currentFieldValue) || DOUBLE_NILL_VALUE.equals(currentFieldValue)) {
+                    continue;
+                }
+
+                // All requirements of the backup process are now valid. Now check if there is also a value or we have to set the backup field value
+
+                //TODO: QUESTION: Is this the correct way to get the INDEX and TYPE?
+                logger.debug("Searching for existing value for field '{}' on index {} and type {}", currentFieldKey, prev.index(), prev.type());
+                if (output.getDocumentFieldValue(prev.index(), prev.type(), prev.id(), String.valueOf(currentFieldKey)) != null) {
+                    continue;
+                }
+
+                // Backup field value will be used. Continue default flow...
             }
 
             Map map = null;
             try {
                 // JSON content?
-                map = JsonXContent.jsonXContent.createParser(values.get(i).toString()).mapAndClose();
+                map = JsonXContent.jsonXContent.createParser(currentFieldValue.toString()).mapAndClose();
             } catch (Exception e) {
                 // ignore
             }
-            Object v = map != null && map.size() > 0 ? map : values.get(i);
-            Map<String, Object> m = merge(current.source(), keys.get(i), v);
+            Object v = map != null && map.size() > 0 ? map : currentFieldValue;
+            Map<String, Object> m = merge(current.source(), currentFieldKey, v);
             current.source(m);
         }
         return this;

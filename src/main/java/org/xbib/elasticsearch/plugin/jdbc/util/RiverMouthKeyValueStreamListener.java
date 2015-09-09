@@ -25,10 +25,8 @@ import java.io.IOException;
  */
 public class RiverMouthKeyValueStreamListener<K, V> extends PlainKeyValueStreamListener<K, V> {
 
-    private RiverMouth output;
-
     public RiverMouthKeyValueStreamListener<K, V> output(RiverMouth output) {
-        this.output = output;
+        super.output(output);
         return this;
     }
 

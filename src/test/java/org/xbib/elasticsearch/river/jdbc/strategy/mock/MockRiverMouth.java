@@ -139,6 +139,11 @@ public class MockRiverMouth implements RiverMouth<MockRiverContext> {
         return null;
     }
 
+    @Override
+    public Object getDocumentFieldValue(String index, String type, String id, String fieldName) {
+        return null;
+    }
+
     public long getCounter() {
         return counter;
     }

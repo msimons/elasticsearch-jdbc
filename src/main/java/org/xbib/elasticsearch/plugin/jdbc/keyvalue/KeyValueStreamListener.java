@@ -15,10 +15,15 @@
  */
 package org.xbib.elasticsearch.plugin.jdbc.keyvalue;
 
+import org.xbib.elasticsearch.river.jdbc.RiverMouth;
+
 import java.io.IOException;
 import java.util.List;
 
 public interface KeyValueStreamListener<K, V> {
+
+
+    KeyValueStreamListener output(RiverMouth output);
 
     /**
      * Begin a key/value sequence
