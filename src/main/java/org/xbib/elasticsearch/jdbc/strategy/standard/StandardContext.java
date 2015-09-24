@@ -78,6 +78,8 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
 
     private Throwable throwable;
 
+    private Integer job;
+
     private final static List<Future> futures = new LinkedList<>();
 
     private final static SourceMetric sourceMetric = new SourceMetric().start();
@@ -92,6 +94,14 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
     @Override
     public StandardContext newInstance() {
         return new StandardContext();
+    }
+
+    public Integer getJob() {
+        return job;
+    }
+
+    public void setJob(Integer job) {
+        this.job = job;
     }
 
     @Override

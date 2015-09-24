@@ -228,6 +228,10 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (object.meta(ControlKeys._ttl.name()) != null) {
             request.ttl(Long.parseLong(object.meta(ControlKeys._ttl.name())));
         }
+
+        registerJob(object);
+
+
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk index action {}", request.source().toUtf8());
         }
@@ -262,11 +266,23 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (object.meta(ControlKeys._parent.name()) != null) {
             request.parent(object.meta(ControlKeys._parent.name()));
         }
+
+        registerJob(object);
+
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk delete action {}/{}/{}", request.index(), request.type(), request.id());
         }
         ingest.bulkDelete(request);
     }
+
+    private void registerJob(IndexableObject object) {
+        if (object.meta(ControlKeys._job.name()) != null) {
+            int job = Integer.parseInt(object.meta(ControlKeys._job.name()));
+            if(context.getJob() == null || job > context.getJob())
+                context.setJob(job);
+        }
+    }
+
 
     @Override
     public void flushIngest() throws IOException {
