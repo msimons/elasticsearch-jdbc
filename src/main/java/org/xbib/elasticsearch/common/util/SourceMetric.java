@@ -19,6 +19,7 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.metrics.CounterMetric;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class SourceMetric {
 
@@ -33,6 +34,8 @@ public class SourceMetric {
     private final CounterMetric failed = new CounterMetric();
 
     private final AtomicInteger counter = new AtomicInteger();
+
+    private final AtomicLong externalJob = new AtomicLong();
 
     private CounterMetric currentRows = new CounterMetric();
 
@@ -100,5 +103,16 @@ public class SourceMetric {
     public void incCounter() {
         counter.incrementAndGet();
     }
+
+    public long getExternalJob() {
+        return externalJob.get();
+    }
+
+    public void setExternalJob(long job) {
+            externalJob.getAndSet(job);
+    }
+
+
+
 
 }

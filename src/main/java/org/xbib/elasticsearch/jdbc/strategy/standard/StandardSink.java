@@ -276,10 +276,14 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
     }
 
     private void registerJob(IndexableObject object) {
+        if(context.getSource().getMetric() == null) {
+            return;
+        }
         if (object.meta(ControlKeys._job.name()) != null) {
-            int job = Integer.parseInt(object.meta(ControlKeys._job.name()));
-            if(context.getJob() == null || job > context.getJob())
-                context.setJob(job);
+            long job = Long.parseLong(object.meta(ControlKeys._job.name()));
+            if(job > context.getSource().getMetric().getExternalJob())
+                context.getSource().getMetric().setExternalJob(job);
+
         }
     }
 

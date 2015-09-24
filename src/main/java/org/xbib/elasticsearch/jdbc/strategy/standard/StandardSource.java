@@ -1246,8 +1246,11 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
             } else if ("$state".equals(s)) {
                 String state = context.getState().name();
                 statement.setString(i, state);
-            } else if ("$metrics.counter".equals(s) || "$job".equals(s)) { // $job for legacy support
+            } else if ("$metrics.counter".equals(s)) {
                 Long counter = metric != null ? metric.getCounter() : -0L;
+                statement.setLong(i, counter);
+            } else if ("$job".equals(s)) { //
+                Long counter = metric != null ? metric.getExternalJob() : -0L;
                 statement.setLong(i, counter);
             } else if ("$lastrowcount".equals(s)) {
                 statement.setLong(i, getLastRowCount());
