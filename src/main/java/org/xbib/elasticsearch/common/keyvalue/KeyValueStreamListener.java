@@ -15,15 +15,10 @@
  */
 package org.xbib.elasticsearch.common.keyvalue;
 
-import org.xbib.elasticsearch.jdbc.strategy.standard.StandardSink;
-
 import java.io.IOException;
 import java.util.List;
 
 public interface KeyValueStreamListener<K, V> {
-
-
-    KeyValueStreamListener output(StandardSink output);
 
     /**
      * Begin a key/value sequence
