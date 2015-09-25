@@ -210,8 +210,7 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
      */
     public KeyValueStreamListener<K, V> end() throws IOException {
         if (prev != null) {
-            prev.source(current.source());
-            end(prev);
+            end(current);
         }
         prev = newObject();
         current = newObject();
