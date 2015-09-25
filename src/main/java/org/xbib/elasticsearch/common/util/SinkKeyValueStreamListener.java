@@ -15,10 +15,7 @@
  */
 package org.xbib.elasticsearch.common.util;
 
-import org.elasticsearch.action.get.GetResponse;
 import org.xbib.elasticsearch.jdbc.strategy.Sink;
-import org.xbib.elasticsearch.support.client.Ingest;
-import org.xbib.elasticsearch.support.client.IngestFactory;
 
 import java.io.IOException;
 
@@ -27,18 +24,11 @@ import java.io.IOException;
  * and transports them to the sink.
  */
 public class SinkKeyValueStreamListener<K, V> extends PlainKeyValueStreamListener<K, V> {
+
     private Sink output;
-    private IngestFactory ingestFactory;
-    private Ingest ingest;
 
     public SinkKeyValueStreamListener<K, V> output(Sink output) {
         this.output = output;
-        return this;
-    }
-
-    public SinkKeyValueStreamListener ingestFactory(IngestFactory ingestFactory) throws IOException {
-        this.ingestFactory = ingestFactory;
-        this.ingest = ingestFactory.create();
         return this;
     }
 
@@ -72,18 +62,6 @@ public class SinkKeyValueStreamListener<K, V> extends PlainKeyValueStreamListene
             }
         }
         return this;
-    }
-
-    public Object fieldValue(String index, String type, String id, String fieldName) {
-        if(ingest == null) {
-            return null;
-        }
-
-        GetResponse response = ingest.client().prepareGet(index, type, id).setFields(fieldName).execute().actionGet();
-        if (response.isExists() && response.getField(fieldName) != null) {
-            return response.getField(fieldName).getValue();
-        }
-        return null;
     }
 
 }

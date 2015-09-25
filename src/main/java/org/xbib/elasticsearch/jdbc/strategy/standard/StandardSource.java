@@ -645,8 +645,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                     if (shouldPrepareResultSetMetadata()) {
                         prepare(results.getMetaData());
                     }
-                    SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<Object, Object>()
-                            .ingestFactory(context.getIngestFactory())
+                    SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
                             .output(context.getSink())
                             .shouldIgnoreNull(shouldIgnoreNull());
                     merge(command, results, listener);
@@ -681,8 +680,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                 statement = prepareQuery(command.getSQL());
                 bind(statement, command.getParameters());
                 results = executeQuery(statement);
-                SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<Object, Object>()
-                        .ingestFactory(context.getIngestFactory())
+                SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
                         .output(context.getSink())
                         .shouldIgnoreNull(shouldIgnoreNull());
                 merge(command, results, listener);
@@ -721,8 +719,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                     register(statement, command.getRegister());
                 }
                 boolean hasRows = statement.execute();
-                SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<Object, Object>()
-                        .ingestFactory(context.getIngestFactory())
+                SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
                         .output(context.getSink());
                 if (hasRows) {
                     logger.debug("callable execution created result set");
