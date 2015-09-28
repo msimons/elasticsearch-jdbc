@@ -16,6 +16,7 @@
 package org.xbib.elasticsearch.common.util;
 
 import org.xbib.elasticsearch.jdbc.strategy.Sink;
+import org.xbib.elasticsearch.support.client.Ingest;
 
 import java.io.IOException;
 
@@ -26,9 +27,15 @@ import java.io.IOException;
 public class SinkKeyValueStreamListener<K, V> extends PlainKeyValueStreamListener<K, V> {
 
     private Sink output;
+    private Ingest ingest;
 
     public SinkKeyValueStreamListener<K, V> output(Sink output) {
         this.output = output;
+        return this;
+    }
+
+    public SinkKeyValueStreamListener<K, V> ingest(Ingest ingest) {
+        this.ingest = ingest;
         return this;
     }
 
@@ -64,4 +71,9 @@ public class SinkKeyValueStreamListener<K, V> extends PlainKeyValueStreamListene
         return this;
     }
 
+    @Override
+    public Object fieldValue(String index, String type, String id, String fieldName) {
+
+        return super.fieldValue(index, type, id, fieldName);
+    }
 }
