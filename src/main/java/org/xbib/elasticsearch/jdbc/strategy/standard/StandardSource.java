@@ -647,6 +647,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                     }
                     SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
                             .output(context.getSink())
+                            .ingest(context.getIngest())
                             .shouldIgnoreNull(shouldIgnoreNull());
                     merge(command, results, listener);
                 }
@@ -682,6 +683,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                 results = executeQuery(statement);
                 SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
                         .output(context.getSink())
+                        .ingest(context.getIngest())
                         .shouldIgnoreNull(shouldIgnoreNull());
                 merge(command, results, listener);
             } else {
@@ -720,7 +722,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                 }
                 boolean hasRows = statement.execute();
                 SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
-                        .output(context.getSink());
+                        .output(context.getSink())
+                        .ingest(context.getIngest());
                 if (hasRows) {
                     logger.debug("callable execution created result set");
                     while (hasRows) {

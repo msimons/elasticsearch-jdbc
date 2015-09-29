@@ -18,6 +18,8 @@ package org.xbib.elasticsearch.common.util;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.shape.Shape;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.xbib.elasticsearch.common.keyvalue.KeyValueStreamListener;
@@ -31,10 +33,13 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener<K, V> {
 
+    private final static ESLogger logger = ESLoggerFactory.getLogger("org.xbib.elasticsearch.common.util.PlainKeyValueStreamListener");
+
     private final static Pattern p = Pattern.compile("^(.*)\\[(.*?)\\]$");
 
     public static final String STRING_NILL_VALUE = "_null_";
     public static final Double DOUBLE_NILL_VALUE = -0.1;
+    public static final String BACKUP_FIELD_PREFIX = "##";
 
     /**
      * The current structured object
@@ -148,8 +153,40 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
         // create current object from values by sequentially merging the values
         for (int i = 0; i < keys.size() && i < values.size(); i++) {
 
-            if(STRING_NILL_VALUE.equals(values.get(i)) || DOUBLE_NILL_VALUE.equals(values.get(i))) {
+            V currentFieldValue = values.get(i);
+            final K currentFieldKey = keys.get(i);
+
+            // Do not index the backup field itself
+            if (String.valueOf(currentFieldKey).startsWith(BACKUP_FIELD_PREFIX)) {
                 continue;
+            }
+
+            if(STRING_NILL_VALUE.equals(currentFieldValue) || DOUBLE_NILL_VALUE.equals(currentFieldValue)) {
+
+                // We will first check if there is a backup field before we check if the current field value. This is done
+                // in this order because the lookup for the current field value is a relative expensive call.
+
+                // Check if there is a backup field value available
+                final String backupFieldName = BACKUP_FIELD_PREFIX + currentFieldKey;
+                int backupFieldIndex = keys.indexOf(backupFieldName);
+                if (backupFieldIndex >= 0) {
+                    currentFieldValue = values.get(backupFieldIndex);
+                } else {
+                    continue;
+                }
+
+                // Check if backup field value is also a valid value.
+                if(STRING_NILL_VALUE.equals(currentFieldValue) || DOUBLE_NILL_VALUE.equals(currentFieldValue)) {
+                    continue;
+                }
+
+                // All requirements of the backup process are now valid. Now check if there is also a value or we have to set the backup field value
+                Object existingFieldValue = fieldValue(prev.index(), prev.type(), prev.id(), String.valueOf(currentFieldKey));
+                if (existingFieldValue != null) {
+                    currentFieldValue = (V) existingFieldValue;
+                }
+
+                // Backup field value will be used. Continue default flow...
             }
 
             Map map = null;
@@ -169,8 +206,8 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
             } catch (Exception e) {
                 // ignore
             }
-            Object v = map != null && map.size() > 0 ? map : values.get(i);
-            Map<String, Object> m = merge(current.source(), keys.get(i), v);
+            Object v = map != null && map.size() > 0 ? map : currentFieldValue;
+            Map<String, Object> m = merge(current.source(), currentFieldKey, v);
             current.source(m);
         }
         return this;
@@ -362,6 +399,10 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
                 return false;
             }
         }
+    }
+
+    public Object fieldValue(String index, String type, String id, String fieldName) {
+        return null;
     }
 
 }

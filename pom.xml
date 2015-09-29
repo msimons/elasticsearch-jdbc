@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.xbib.elasticsearch.importer</groupId>
     <artifactId>elasticsearch-jdbc</artifactId>
-    <version>1.7.0.1</version>
+    <version>1.7.2.0</version>
     <packaging>jar</packaging>
 
     <name>elasticsearch-jdbc</name>
