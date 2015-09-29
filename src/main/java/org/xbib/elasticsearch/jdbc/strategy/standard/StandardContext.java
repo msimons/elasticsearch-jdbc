@@ -197,7 +197,9 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
         if (ingest == null) {
             if (getIngestFactory() != null) {
                 ingest = getIngestFactory().create();
-                ingest.setMetric(metric);
+                if (ingest != null) {
+                    ingest.setMetric(metric);
+                }
             } else {
                 logger.warn("no ingest factory found");
             }
