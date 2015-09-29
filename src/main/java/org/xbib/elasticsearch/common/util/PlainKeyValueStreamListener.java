@@ -18,6 +18,7 @@ package org.xbib.elasticsearch.common.util;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.shape.Shape;
+import org.elasticsearch.common.lang3.StringUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -247,6 +248,9 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
      */
     public KeyValueStreamListener<K, V> end() throws IOException {
         if (prev != null) {
+            if(StringUtils.isNotBlank(current.meta(ControlKeys._job.name()))) {
+                prev.meta(ControlKeys._job.name(),current.meta(ControlKeys._job.name()));
+            }
             prev.source(current.source());
             end(prev);
         }
