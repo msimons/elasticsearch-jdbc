@@ -181,8 +181,9 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
                 }
 
                 // All requirements of the backup process are now valid. Now check if there is also a value or we have to set the backup field value
-                if (fieldValue(current.index(), current.type(), current.id(), String.valueOf(currentFieldKey)) != null) {
-                    continue;
+                Object existingFieldValue = fieldValue(prev.index(), prev.type(), prev.id(), String.valueOf(currentFieldKey));
+                if (existingFieldValue != null) {
+                    currentFieldValue = (V) existingFieldValue;
                 }
 
                 // Backup field value will be used. Continue default flow...
@@ -400,8 +401,7 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
         }
     }
 
-    public Object fieldValue(String index, String type, String id, String fieldName){
-
+    public Object fieldValue(String index, String type, String id, String fieldName) {
         return null;
     }
 

@@ -15,6 +15,7 @@
  */
 package org.xbib.elasticsearch.common.util;
 
+import org.elasticsearch.action.get.GetResponse;
 import org.xbib.elasticsearch.jdbc.strategy.Sink;
 import org.xbib.elasticsearch.support.client.Ingest;
 
@@ -73,7 +74,12 @@ public class SinkKeyValueStreamListener<K, V> extends PlainKeyValueStreamListene
 
     @Override
     public Object fieldValue(String index, String type, String id, String fieldName) {
-
-        return super.fieldValue(index, type, id, fieldName);
+        if (ingest != null) {
+            GetResponse response = ingest.client().prepareGet(index, type, id).setFields(fieldName).execute().actionGet();
+            if (response.isExists() && response.getField(fieldName) != null) {
+                return response.getField(fieldName).getValue();
+            }
+        }
+        return null;
     }
 }
