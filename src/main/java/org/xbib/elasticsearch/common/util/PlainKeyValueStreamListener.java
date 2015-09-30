@@ -66,6 +66,10 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
 
     private boolean shouldIgnoreNull = false;
 
+    private boolean shouldDetectGeo = true;
+
+    private boolean shouldDetectJson = true;
+
     /**
      * Set custom delimiter
      *
@@ -82,6 +86,15 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
         return this;
     }
 
+    public PlainKeyValueStreamListener shouldDetectGeo(boolean shouldDetectGeo) {
+        this.shouldDetectGeo = shouldDetectGeo;
+        return this;
+    }
+
+    public PlainKeyValueStreamListener shouldDetectJson(boolean shouldDetectJson) {
+        this.shouldDetectJson = shouldDetectJson;
+        return this;
+    }
 
     /**
      * @return this value listener
@@ -193,7 +206,8 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
             Map map = null;
             try {
                 String s = values.get(i).toString();
-                if (s.startsWith("POLYGON(") || s.startsWith("POINT(")) {
+                // geo content?
+                if (shouldDetectGeo && s.startsWith("POLYGON(") || s.startsWith("POINT(")) {
                     SpatialContext ctx = JtsSpatialContext.GEO;
                     Shape shape = ctx.readShapeFromWkt(s);
                     XContentBuilder builder = jsonBuilder();
@@ -203,12 +217,16 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
                     s = builder.string();
                 }
                 // JSON content?
-                map = JsonXContent.jsonXContent.createParser(s).mapAndClose();
+                if (shouldDetectJson) {
+                    map = JsonXContent.jsonXContent.createParser(s).mapAndClose();
+                }
             } catch (Exception e) {
                 // ignore
             }
+
             Object v = map != null && map.size() > 0 ? map : currentFieldValue;
             Map<String, Object> m = merge(current.source(), currentFieldKey, v);
+
             current.source(m);
         }
         return this;

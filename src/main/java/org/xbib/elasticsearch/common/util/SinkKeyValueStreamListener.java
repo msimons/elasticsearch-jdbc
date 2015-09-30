@@ -45,6 +45,16 @@ public class SinkKeyValueStreamListener<K, V> extends PlainKeyValueStreamListene
         return this;
     }
 
+    public SinkKeyValueStreamListener<K, V> shouldDetectGeo(boolean shouldDetectGeo) {
+        super.shouldDetectGeo(shouldDetectGeo);
+        return this;
+    }
+
+    public SinkKeyValueStreamListener<K, V> shouldDetectJson(boolean shouldDetectJson) {
+        super.shouldDetectJson(shouldDetectJson);
+        return this;
+    }
+
     /**
      * The object is complete. Push it to the sink.
      *
@@ -63,6 +73,8 @@ public class SinkKeyValueStreamListener<K, V> extends PlainKeyValueStreamListene
                 output.index(object, false);
             } else if ("create".equals(object.optype())) {
                 output.index(object, true);
+            } else if ("update".equals(object.optype())) {
+                output.update(object);
             } else if ("delete".equals(object.optype())) {
                 output.delete(object);
             } else {

@@ -19,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -88,6 +89,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
     @Override
     public synchronized void beforeFetch() throws IOException {
         Ingest ingest = context.getOrCreateIngest(metric);
+
 
         if (ingest == null) {
             logger.warn("no ingest found");
@@ -266,15 +268,54 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
     }
 
     private void registerJob(IndexableObject object) {
-        if(context.getSource().getMetric() == null) {
+        if (context.getSource().getMetric() == null) {
             return;
         }
+
         if (object.meta(ControlKeys._job.name()) != null) {
             long job = Long.parseLong(object.meta(ControlKeys._job.name()));
-            if(job > context.getSource().getMetric().getExternalJob())
+            if (job > context.getSource().getMetric().getExternalJob())
                 context.getSource().getMetric().setExternalJob(job);
 
         }
+
+    }
+
+    @Override
+    public void update(IndexableObject object) {
+        Ingest ingest = context.getIngest();
+
+        if (ingest == null) {
+            return;
+        }
+        if (Strings.hasLength(object.index())) {
+            this.index = object.index();
+        }
+        if (Strings.hasLength(object.type())) {
+            this.type = object.type();
+        }
+        if (Strings.hasLength(object.id())) {
+            setId(object.id());
+        }
+        if (getId() == null) {
+            return; // skip if no doc is specified to delete
+        }
+        UpdateRequest request = new UpdateRequest().index(this.index).type(this.type).id(getId());
+        if (object.meta(ControlKeys._version.name()) != null) {
+            request.versionType(VersionType.EXTERNAL)
+                    .version(Long.parseLong(object.meta(ControlKeys._version.name())));
+        }
+        if (object.meta(ControlKeys._routing.name()) != null) {
+            request.routing(object.meta(ControlKeys._routing.name()));
+        }
+        if (object.meta(ControlKeys._parent.name()) != null) {
+            request.parent(object.meta(ControlKeys._parent.name()));
+        }
+        if (logger.isTraceEnabled()) {
+            logger.trace("adding bulk update action {}/{}/{}", request.index(), request.type(), request.id());
+        }
+
+        ingest.bulkUpdate(request);
     }
 
 
