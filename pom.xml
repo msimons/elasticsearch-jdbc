@@ -71,7 +71,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.compiler.version>1.7</java.compiler.version>
         <elasticsearch.version>1.7.2</elasticsearch.version>
-        <org.xbib.elasticsearch.support.version>1.7.2.1</org.xbib.elasticsearch.support.version>
+        <org.xbib.elasticsearch.support.version>1.7.2.0</org.xbib.elasticsearch.support.version>
     </properties>
 
     <dependencies>
