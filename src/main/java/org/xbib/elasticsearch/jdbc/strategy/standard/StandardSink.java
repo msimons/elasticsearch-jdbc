@@ -274,9 +274,11 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
 
         if (object.meta(ControlKeys._job.name()) != null) {
             long job = Long.parseLong(object.meta(ControlKeys._job.name()));
-            if (job > context.getSource().getMetric().getExternalJob())
-                context.getSource().getMetric().setExternalJob(job);
 
+            if (job > context.getSource().getMetric().getExternalJob()) {
+                context.getSource().getMetric().setExternalJob(job);
+                logger.debug("Registered job ID {} as handled", job);
+            }
         }
 
     }
@@ -311,11 +313,14 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (object.meta(ControlKeys._parent.name()) != null) {
             request.parent(object.meta(ControlKeys._parent.name()));
         }
+
+        registerJob(object);
+
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk update action {}/{}/{}", request.index(), request.type(), request.id());
         }
 
-        ingest.bulkUpdate(request);
+//        ingest.bulkUpdate(request);
     }
 
 
