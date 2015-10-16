@@ -284,7 +284,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
     }
 
     @Override
-    public void update(IndexableObject object) {
+    public void update(IndexableObject object) throws IOException {
         Ingest ingest = context.getIngest();
 
         if (ingest == null) {
@@ -302,7 +302,9 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (getId() == null) {
             return; // skip if no doc is specified to delete
         }
-        UpdateRequest request = new UpdateRequest().index(this.index).type(this.type).id(getId());
+        UpdateRequest request = new UpdateRequest().index(this.index).type(this.type).id(getId()).doc(object.source());
+        request.docAsUpsert(true);
+
         if (object.meta(ControlKeys._version.name()) != null) {
             request.versionType(VersionType.EXTERNAL)
                     .version(Long.parseLong(object.meta(ControlKeys._version.name())));
