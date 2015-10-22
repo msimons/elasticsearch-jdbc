@@ -322,7 +322,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             logger.trace("adding bulk update action {}/{}/{}", request.index(), request.type(), request.id());
         }
 
-//        ingest.bulkUpdate(request);
+        ingest.bulkUpdate(request);
     }
 
 
