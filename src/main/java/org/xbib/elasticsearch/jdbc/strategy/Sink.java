@@ -17,6 +17,7 @@ package org.xbib.elasticsearch.jdbc.strategy;
 
 import org.elasticsearch.common.settings.Settings;
 import org.xbib.elasticsearch.common.util.IndexableObject;
+import org.xbib.elasticsearch.support.client.AcknowledgeInfo;
 import org.xbib.elasticsearch.support.client.Metric;
 
 import java.io.IOException;
@@ -157,6 +158,13 @@ public interface Sink<C extends Context> {
      * @throws IOException when flush fails
      */
     void flushIngest() throws IOException;
+
+
+    /**
+     * Acknowledge
+     * @return Acknowledge
+     */
+    AcknowledgeInfo acknowledge();
 
     /**
      * Shutdown and release all resources, e.g. bulk processor and client

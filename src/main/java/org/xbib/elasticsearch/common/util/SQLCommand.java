@@ -38,6 +38,13 @@ public class SQLCommand {
 
     private String sql;
 
+    private boolean acknowledge = false;
+
+    private SQLCommand ackSqlFull;
+
+    private SQLCommand ackSqlSingle;
+
+
     private static final Pattern STATEMENT_PATTERN = Pattern.compile("^\\s*(update|insert)", Pattern.CASE_INSENSITIVE);
 
     private List<Object> params = newLinkedList();
@@ -48,6 +55,30 @@ public class SQLCommand {
 
     private boolean callable;
 
+    public boolean isAcknowledge() {
+        return acknowledge;
+    }
+
+    public void setAcknowledge(boolean acknowledge) {
+        this.acknowledge = acknowledge;
+    }
+
+    public SQLCommand getAckSqlFull() {
+        return ackSqlFull;
+    }
+
+    public void setAckSqlFull(SQLCommand ackSqlFull) {
+        this.ackSqlFull = ackSqlFull;
+    }
+
+    public SQLCommand getAckSqlSingle() {
+        return ackSqlSingle;
+    }
+
+    public void setAckSqlSingle(SQLCommand ackSqlSingle) {
+        this.ackSqlSingle = ackSqlSingle;
+    }
+
     public SQLCommand setSQL(String sql) throws IOException {
         if (sql.endsWith(".sql")) {
             Reader r = new InputStreamReader(new FileInputStream(sql), "UTF-8");
@@ -57,6 +88,7 @@ public class SQLCommand {
         this.sql = sql;
         return this;
     }
+
 
     public String getSQL() {
         return sql;
@@ -137,34 +169,54 @@ public class SQLCommand {
         }
         List<Object> list = (List<Object>) settings.get("sql");
         for (Object entry : list) {
-            SQLCommand command = new SQLCommand();
-            try {
-                if (entry instanceof Map) {
-                    Map<String, Object> m = (Map<String, Object>) entry;
-                    if (m.containsKey("statement")) {
-                        command.setSQL((String) m.get("statement"));
-                    }
-                    if (m.containsKey("parameter")) {
-                        command.setParameters(XContentMapValues.extractRawValues("parameter", m));
-                    }
-                    if (m.containsKey("write")) {
-                        command.setWrite(XContentMapValues.nodeBooleanValue(m.get("write")));
-                    }
-                    if (m.containsKey("callable")) {
-                        command.setCallable(XContentMapValues.nodeBooleanValue(m.get("callable")));
-                    }
-                    if (m.containsKey("register")) {
-                        command.setRegister(XContentMapValues.nodeMapValue(m.get("register"), null));
-                    }
-                } else if (entry instanceof String) {
-                    command.setSQL((String) entry);
-                }
-                sql.add(command);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("SQL command not found", e);
-            }
+            SQLCommand command = parseSqlCommand(entry);
+            sql.add(command);
         }
         return sql;
+    }
+
+    private static SQLCommand parseSqlCommand(Object entry) {
+        SQLCommand command = new SQLCommand();
+        try {
+            if (entry instanceof Map) {
+                Map<String, Object> m = (Map<String, Object>) entry;
+                if (m.containsKey("statement")) {
+                    command.setSQL((String) m.get("statement"));
+                }
+
+                if(m.containsKey("acknowledge")) {
+                    command.setAcknowledge(XContentMapValues.nodeBooleanValue(m.get("acknowledge")));
+                }
+
+                if(m.containsKey("acknowledge-full-sql")) {
+                    SQLCommand innerCommand = parseSqlCommand(m.get("acknowledge-full-sql"));
+                    command.setAckSqlFull(innerCommand);
+                }
+
+                if(m.containsKey("acknowledge-single-sql")) {
+                    SQLCommand innerCommand = parseSqlCommand(m.get("acknowledge-single-sql"));
+                    command.setAckSqlSingle(innerCommand);
+                }
+
+                if (m.containsKey("parameter")) {
+                    command.setParameters(XContentMapValues.extractRawValues("parameter", m));
+                }
+                if (m.containsKey("write")) {
+                    command.setWrite(XContentMapValues.nodeBooleanValue(m.get("write")));
+                }
+                if (m.containsKey("callable")) {
+                    command.setCallable(XContentMapValues.nodeBooleanValue(m.get("callable")));
+                }
+                if (m.containsKey("register")) {
+                    command.setRegister(XContentMapValues.nodeMapValue(m.get("register"), null));
+                }
+            } else if (entry instanceof String) {
+                command.setSQL((String) entry);
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("SQL command not found", e);
+        }
+        return command;
     }
 
     public String toString() {

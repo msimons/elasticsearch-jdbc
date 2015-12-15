@@ -30,6 +30,12 @@ public class SinkKeyValueStreamListener<K, V> extends PlainKeyValueStreamListene
     private Sink output;
     private Ingest ingest;
 
+    /* needed for acknowledgement */
+    public SinkKeyValueStreamListener<K, V> sqlCommand(SQLCommand sqlCommand) {
+        this.sqlCommand = sqlCommand;
+        return this;
+    }
+
     public SinkKeyValueStreamListener<K, V> output(Sink output) {
         this.output = output;
         return this;
@@ -66,6 +72,12 @@ public class SinkKeyValueStreamListener<K, V> extends PlainKeyValueStreamListene
         if (object.isEmpty()) {
             return this;
         }
+
+        /*  only use jobid with ack */
+        if(sqlCommand == null || !sqlCommand.isAcknowledge()){
+            object.meta(ControlKeys._job.name(),null);
+        }
+
         if (output != null) {
             if (object.optype() == null) {
                 output.index(object, false);

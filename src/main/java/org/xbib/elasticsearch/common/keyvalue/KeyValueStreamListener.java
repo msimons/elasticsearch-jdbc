@@ -15,10 +15,15 @@
  */
 package org.xbib.elasticsearch.common.keyvalue;
 
+import org.xbib.elasticsearch.common.util.SQLCommand;
+
 import java.io.IOException;
 import java.util.List;
 
 public interface KeyValueStreamListener<K, V> {
+
+    KeyValueStreamListener<K, V> sqlCommand(SQLCommand sqlCommand);
+
 
     /**
      * Begin a key/value sequence

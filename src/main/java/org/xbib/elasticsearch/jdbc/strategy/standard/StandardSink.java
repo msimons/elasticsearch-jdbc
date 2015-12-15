@@ -27,9 +27,10 @@ import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.xbib.elasticsearch.jdbc.strategy.Sink;
 import org.xbib.elasticsearch.common.util.ControlKeys;
 import org.xbib.elasticsearch.common.util.IndexableObject;
+import org.xbib.elasticsearch.jdbc.strategy.Sink;
+import org.xbib.elasticsearch.support.client.AcknowledgeInfo;
 import org.xbib.elasticsearch.support.client.Ingest;
 import org.xbib.elasticsearch.support.client.Metric;
 
@@ -89,7 +90,6 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
     @Override
     public synchronized void beforeFetch() throws IOException {
         Ingest ingest = context.getOrCreateIngest(metric);
-
 
         if (ingest == null) {
             logger.warn("no ingest found");
@@ -219,13 +219,11 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             request.ttl(Long.parseLong(object.meta(ControlKeys._ttl.name())));
         }
 
-        registerJob(object);
-
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk index action {}", request.source().toUtf8());
         }
 
-        ingest.bulkIndex(request);
+        ingest.bulkIndex(object.job(),request);
     }
 
     @Override
@@ -259,29 +257,15 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             request.parent(object.meta(ControlKeys._parent.name()));
         }
 
-        registerJob(object);
-
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk delete action {}/{}/{}", request.index(), request.type(), request.id());
         }
-        ingest.bulkDelete(request);
-    }
 
-    private void registerJob(IndexableObject object) {
-        if (context.getSource().getMetric() == null) {
-            return;
-        }
+        ingest.bulkDelete(object.job(),request);
 
-        if (object.meta(ControlKeys._job.name()) != null) {
-            long job = Long.parseLong(object.meta(ControlKeys._job.name()));
-
-            if (job > context.getSource().getMetric().getExternalJob()) {
-                context.getSource().getMetric().setExternalJob(job);
-                logger.debug("Registered job ID {} as handled", job);
-            }
-        }
 
     }
+
 
     @Override
     public void update(IndexableObject object) throws IOException {
@@ -316,13 +300,10 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             request.parent(object.meta(ControlKeys._parent.name()));
         }
 
-        registerJob(object);
-
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk update action {}/{}/{}", request.index(), request.type(), request.id());
         }
-
-        ingest.bulkUpdate(request);
+        ingest.bulkUpdate(object.job(),request);
     }
 
 
@@ -331,4 +312,13 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
 
     }
 
+    @Override
+    public AcknowledgeInfo acknowledge() {
+        Ingest ingest = context.getIngest();
+        if(ingest == null) {
+            return null;
+        }
+
+        return ingest.acknowledge();
+    }
 }

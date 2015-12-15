@@ -18,14 +18,10 @@ package org.xbib.elasticsearch.jdbc.strategy;
 import org.elasticsearch.common.unit.TimeValue;
 import org.xbib.elasticsearch.common.keyvalue.KeyValueStreamListener;
 import org.xbib.elasticsearch.common.util.SQLCommand;
+import org.xbib.elasticsearch.support.client.AcknowledgeInfo;
 
 import java.io.IOException;
-import java.sql.CallableStatement;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.text.ParseException;
 import java.util.List;
 import java.util.Locale;
@@ -446,5 +442,12 @@ public interface JDBCSource<C extends Context> extends Source<C> {
      * @return this source
      */
     JDBCSource<C> setTimeZone(TimeZone timeZone);
+
+
+    /**
+     * Acknowledge the ingest response
+     * @param acknowledgeInfo Acknowledge info
+     */
+    void acknowledge(AcknowledgeInfo acknowledgeInfo);
 
 }

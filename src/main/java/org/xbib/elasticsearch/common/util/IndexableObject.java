@@ -23,7 +23,6 @@ import java.util.Map;
  * meta data about the object.
  */
 public interface IndexableObject {
-
     /**
      * Set the operation type, either "index", "create", or "delete"
      *
@@ -83,6 +82,13 @@ public interface IndexableObject {
      * @return the ID
      */
     String id();
+
+
+    /**
+     * Get the job Id
+     * @return the job Id
+     */
+    Long job();
 
     /**
      * Set meta data of this indexable object

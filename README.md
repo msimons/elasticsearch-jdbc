@@ -39,8 +39,11 @@ about what happened.
 
 ## Recent versions
 
+This specific fork has support for automatic data acknowledgement between table and ES! 
+
 | Release date | Importer version | Elasticsearch version |
 | -------------| -----------------| ----------------------|
+| Dec 15 2015  | 1.7.3.1-msimons  | 1.7.2                 |
 | Sep 29 2015  | 1.7.2.1          | 1.7.2                 |
 | Jul 24 2015  | 1.7.0.1          | 1.7.0                 |
 | Jul 24 2015  | 1.6.0.1          | 1.6.0                 |
@@ -173,6 +176,20 @@ Here is the list of parameters for the `jdbc` block in the definition.
 	        "parameter" : [ "value for a", "value for b", "value for c" ],
 	        "write" : "true"
 	    },
+	    {
+            "statement" : "select * from \"test_update_river\" ORDER BY \"_job\"",
+            "acknowledge" : true,
+            "acknowledge-full-sql" :
+            {
+                "statement" : "delete from \"test_update_river\" where \"_job\" >= ? and \"_job\" <= ?",
+                "parameter" : ["$job_min","$job_max"]
+            },
+            "acknowledge-single-sql" :
+            {
+                "statement" : "delete from \"test_update_river\" where \"_job\" = ?",
+                "parameter" : ["$job"]
+            }
+        }
 	    {
 	        "statement" : ...
 	    }

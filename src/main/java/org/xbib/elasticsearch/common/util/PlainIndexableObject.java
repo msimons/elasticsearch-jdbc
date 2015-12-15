@@ -94,6 +94,15 @@ public class PlainIndexableObject implements IndexableObject, ToXContent, Compar
     }
 
     @Override
+    public Long job() {
+        if(meta(ControlKeys._job.name()) == null) {
+            return null;
+        }
+        return Long.parseLong(meta(ControlKeys._job.name()));
+
+    }
+
+    @Override
     public IndexableObject meta(String key, String value) {
         meta.put(key, value);
         return this;

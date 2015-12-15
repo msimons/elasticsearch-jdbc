@@ -26,6 +26,8 @@ import org.xbib.elasticsearch.common.util.SQLCommand;
 import org.xbib.elasticsearch.common.util.SinkKeyValueStreamListener;
 import org.xbib.elasticsearch.common.util.SourceMetric;
 import org.xbib.elasticsearch.jdbc.strategy.JDBCSource;
+import org.xbib.elasticsearch.support.client.AcknowledgeInfo;
+import org.xbib.elasticsearch.support.client.AcknowledgeItem;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -122,6 +124,14 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
     private boolean shouldTreatBinaryAsString;
 
     private SourceMetric metric;
+
+    private Long job;
+
+    private Long jobMin;
+
+    private Long jobMax;
+
+    private SQLCommand activeSqlCommand;
 
     @Override
     public String strategy() {
@@ -571,6 +581,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
         DateTime dateTime = new DateTime();
         try {
             for (SQLCommand command : getStatements()) {
+                activeSqlCommand = command;
                 try {
                     if (command.isCallable()) {
                         logger.debug("{} executing callable SQL: {}", this, command);
@@ -606,6 +617,10 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                         metric.setLastExecutionStart(dateTime);
                         metric.setLastExecutionEnd(new DateTime());
                     }
+                }
+
+                if(command.isAcknowledge()) {
+                    acknowledge(context.getSink().acknowledge());
                 }
             }
         } catch (Exception e) {
@@ -668,6 +683,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                         prepare(results.getMetaData());
                     }
                     SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
+                            .sqlCommand(command)
                             .output(context.getSink())
                             .ingest(context.getIngest())
                             .shouldIgnoreNull(shouldIgnoreNull())
@@ -706,6 +722,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                 bind(statement, command.getParameters());
                 results = executeQuery(statement);
                 SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
+                        .sqlCommand(command)
                         .output(context.getSink())
                         .ingest(context.getIngest())
                         .shouldIgnoreNull(shouldIgnoreNull())
@@ -748,6 +765,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                 }
                 boolean hasRows = statement.execute();
                 SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
+                        .sqlCommand(command)
                         .output(context.getSink())
                         .ingest(context.getIngest());
                 if (hasRows) {
@@ -1261,7 +1279,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
     }
 
     private void bind(PreparedStatement statement, int i, Object value) throws SQLException {
-        logger.debug("bind: value = {}", value);
+        logger.trace("bind: value = {}", value);
         if (value == null) {
             statement.setNull(i, Types.VARCHAR);
         } else if (value instanceof String) {
@@ -1276,8 +1294,11 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                 Long counter = metric != null ? metric.getCounter() : -0L;
                 statement.setLong(i, counter);
             } else if ("$job".equals(s)) { //
-                Long counter = metric != null ? metric.getExternalJob() : -0L;
-                statement.setLong(i, counter);
+                statement.setLong(i, job);
+            } else if ("$job_min".equals(s)) { //
+                statement.setLong(i, jobMin);
+            } else if ("$job_max".equals(s)) { //
+                statement.setLong(i, jobMax);
             } else if ("$lastrowcount".equals(s)) {
                 statement.setLong(i, getLastRowCount());
             } else if ("$lastexceptiondate".equals(s)) {
@@ -2008,4 +2029,58 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
         return new DateTime(millis).withZone(dateTimeZone).toString();
     }
 
+
+    @Override
+    public void acknowledge(AcknowledgeInfo acknowledgeInfo) {
+
+        if(acknowledgeInfo == null || !acknowledgeInfo.processed()) {
+            return;
+        }
+
+        if(activeSqlCommand == null) {
+            logger.warn("sql command is missing!");
+            return;
+        }
+
+        if(!activeSqlCommand.isAcknowledge()) {
+            logger.debug("acknowledgement not enabled!");
+            return;
+        }
+
+        SQLCommand command;
+        try {
+
+            if(acknowledgeInfo.isSucceeded()) {
+                jobMin = acknowledgeInfo.getActionIdMin();
+                jobMax = acknowledgeInfo.getActionIdMax();
+                job = null;
+                command = activeSqlCommand.getAckSqlFull();
+                PreparedStatement statement = prepareUpdate(command.getSQL());
+                bind(statement, command.getParameters());
+                executeUpdate(statement);
+                return;
+            }
+
+            command = activeSqlCommand.getAckSqlSingle();
+            PreparedStatement statement = prepareUpdate(command.getSQL());
+            logger.debug("processing acknowledgements...");
+            for(AcknowledgeItem item : acknowledgeInfo.getItems()) {
+                if(item.getJobIdentity().isSucceeded()) {
+                    jobMin = null;
+                    jobMax = null;
+                    job = item.getJobIdentity().getId();
+                    logger.trace("removing succeeded action {} from source", job);
+                    bind(statement, command.getParameters());
+                    executeUpdate(statement);
+                } else {
+                    logger.trace("failed action {}", item.getJobIdentity().getId());
+                }
+            }
+            logger.debug("processing acknowledgements done!");
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+    }
 }

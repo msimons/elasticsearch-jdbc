@@ -21,14 +21,10 @@ import org.xbib.elasticsearch.common.util.SQLCommand;
 import org.xbib.elasticsearch.common.util.SourceMetric;
 import org.xbib.elasticsearch.jdbc.strategy.JDBCSource;
 import org.xbib.elasticsearch.jdbc.strategy.Source;
+import org.xbib.elasticsearch.support.client.AcknowledgeInfo;
 
 import java.io.IOException;
-import java.sql.CallableStatement;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.text.ParseException;
 import java.util.List;
 import java.util.Locale;
@@ -312,4 +308,8 @@ public class MockJDBCSource implements JDBCSource<MockContext> {
         return null;
     }
 
+    @Override
+    public void acknowledge(AcknowledgeInfo acknowledgeInfo) {
+
+    }
 }

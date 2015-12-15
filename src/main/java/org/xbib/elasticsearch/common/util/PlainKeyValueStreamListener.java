@@ -70,6 +70,14 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
 
     private boolean shouldDetectJson = true;
 
+    protected SQLCommand sqlCommand;
+
+    /* needed for acknowledgement */
+    public PlainKeyValueStreamListener<K, V> sqlCommand(SQLCommand sqlCommand) {
+        this.sqlCommand = sqlCommand;
+        return this;
+    }
+
     /**
      * Set custom delimiter
      *
