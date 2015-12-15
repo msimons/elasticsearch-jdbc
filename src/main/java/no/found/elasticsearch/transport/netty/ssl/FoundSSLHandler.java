@@ -664,7 +664,6 @@ public class FoundSSLHandler extends FrameDecoder implements ChannelDownstreamHa
 
     /**
      * Checks if the given {@link Throwable} can be ignore and just "swallowed"
-     * <p/>
      * When an ssl connection is closed a close_notify message is sent.
      * After that the peer also sends close_notify however, it's not mandatory to receive
      * the close_notify. The party who sent the initial close_notify can close the connection immediately
