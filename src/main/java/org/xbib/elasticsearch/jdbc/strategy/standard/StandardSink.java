@@ -319,6 +319,13 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             return null;
         }
 
-        return ingest.acknowledge();
+        try {
+            return ingest.acknowledge();
+        } catch (InterruptedException e) {
+            logger.error("acknowledge interrupted",e);
+            Thread.currentThread().interrupt();
+        }
+
+        return null;
     }
 }
