@@ -223,7 +223,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             logger.trace("adding bulk index action {}", request.source().toUtf8());
         }
 
-        ingest.bulkIndex(object.job(),request);
+        ingest.bulkIndex(request,object.jobs().toArray(new Long[object.jobs().size()]));
     }
 
     @Override
@@ -261,7 +261,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             logger.trace("adding bulk delete action {}/{}/{}", request.index(), request.type(), request.id());
         }
 
-        ingest.bulkDelete(object.job(),request);
+        ingest.bulkDelete(request,object.jobs().toArray(new Long[object.jobs().size()]));
 
 
     }
@@ -303,7 +303,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk update action {}/{}/{}", request.index(), request.type(), request.id());
         }
-        ingest.bulkUpdate(object.job(),request);
+        ingest.bulkUpdate(request,object.jobs().toArray(new Long[object.jobs().size()]));
     }
 
 

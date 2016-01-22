@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.xbib.elasticsearch.importer</groupId>
     <artifactId>elasticsearch-jdbc</artifactId>
-    <version>1.7.3.2-msimons</version>
+    <version>1.7.3.2-msimons1</version>
     <packaging>jar</packaging>
 
     <name>elasticsearch-jdbc</name>
@@ -72,6 +72,7 @@
         <java.compiler.version>1.7</java.compiler.version>
         <elasticsearch.version>1.7.3</elasticsearch.version>
         <org.xbib.elasticsearch.support.version>1.7.3.2-msimons</org.xbib.elasticsearch.support.version>
+        <org.xbib.elasticsearch.support.version>1.7.3.2-msimons1</org.xbib.elasticsearch.support.version>
         <oracle.version>11.2.0.4</oracle.version>
 
     </properties>

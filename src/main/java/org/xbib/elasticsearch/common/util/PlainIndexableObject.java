@@ -15,13 +15,12 @@
  */
 package org.xbib.elasticsearch.common.util;
 
+import org.elasticsearch.common.lang3.StringUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -33,8 +32,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class PlainIndexableObject implements IndexableObject, ToXContent, Comparable<IndexableObject> {
 
     private Map<String, String> meta;
-
     private Map<String, Object> core;
+    private Set<Long> jobIds = new HashSet<>();
 
     private boolean ignoreNull;
 
@@ -94,16 +93,22 @@ public class PlainIndexableObject implements IndexableObject, ToXContent, Compar
     }
 
     @Override
-    public Long job() {
-        if(meta(ControlKeys._job.name()) == null) {
-            return null;
-        }
-        return Long.parseLong(meta(ControlKeys._job.name()));
+    public Set<Long> jobs() {
+        return jobIds;
+    }
 
+    @Override
+    public void addJobs(Collection jobs) {
+        if(jobs != null) {
+            jobIds.addAll(jobs);
+        }
     }
 
     @Override
     public IndexableObject meta(String key, String value) {
+        if(ControlKeys._job.name().equals(key) && StringUtils.isNumeric(value)) {
+            jobIds.add(Long.parseLong(value));
+        }
         meta.put(key, value);
         return this;
     }

@@ -16,7 +16,9 @@
 package org.xbib.elasticsearch.common.util;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A structured object is composed by an object data source together with
@@ -88,7 +90,13 @@ public interface IndexableObject {
      * Get the job Id
      * @return the job Id
      */
-    Long job();
+    Set<Long> jobs();
+
+    /**
+     * Add jobs
+     * @param jobs
+     */
+    void addJobs(Collection jobs);
 
     /**
      * Set meta data of this indexable object
