@@ -17,8 +17,10 @@ package org.xbib.elasticsearch.jdbc.strategy;
 
 import org.xbib.elasticsearch.common.metrics.SinkMetric;
 import org.xbib.elasticsearch.common.util.IndexableObject;
+import org.xbib.elasticsearch.jdbc.strategy.standard.AcknowledgeTracker;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 /**
  * The sink is the abstraction of a destination where all the data
@@ -147,4 +149,10 @@ public interface Sink<C extends Context> {
     void shutdown() throws IOException;
 
     SinkMetric getMetric();
+
+    /**
+     * Acknowledge tracker
+     * @param acknowledgeTracker Acknowledge tracker
+     */
+    void setAcknowledgeTracker(AcknowledgeTracker acknowledgeTracker);
 }

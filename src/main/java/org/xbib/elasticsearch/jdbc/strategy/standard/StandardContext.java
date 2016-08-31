@@ -176,7 +176,13 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
     public void beforeFetch() throws Exception {
         logger.debug("before fetch");
         Sink sink = createSink();
+
+        AcknowledgeTracker acknowledgeTracker = new AcknowledgeTracker(sink.getMetric().getAcknowledgeMetric());
+        sink.setAcknowledgeTracker(acknowledgeTracker);
+
         S source = createSource();
+        source.setAcknowledgeTracker(acknowledgeTracker);
+
         prepareContext(source, sink);
         sink.setContext(this);
         source.setContext(this);
@@ -199,18 +205,21 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
     public void afterFetch() throws Exception {
         logger.debug("after fetch");
         writeState();
-        try {
-            getSource().afterFetch();
-        } catch (Throwable e) {
-            setThrowable(e);
-            logger.error("after fetch: " + e.getMessage(), e);
-        }
+
         try {
             getSink().afterFetch();
         } catch (Throwable e) {
             setThrowable(e);
             logger.error("after fetch: " + e.getMessage(), e);
         }
+
+        try {
+            getSource().afterFetch();
+        } catch (Throwable e) {
+            setThrowable(e);
+            logger.error("after fetch: " + e.getMessage(), e);
+        }
+
     }
 
     @Override

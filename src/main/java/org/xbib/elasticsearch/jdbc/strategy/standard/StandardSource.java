@@ -21,46 +21,21 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.xbib.elasticsearch.common.keyvalue.KeyValueStreamListener;
-import org.xbib.elasticsearch.common.util.ExceptionFormatter;
 import org.xbib.elasticsearch.common.metrics.SourceMetric;
-import org.xbib.elasticsearch.jdbc.strategy.JDBCSource;
-import org.xbib.elasticsearch.common.util.SinkKeyValueStreamListener;
+import org.xbib.elasticsearch.common.util.ExceptionFormatter;
 import org.xbib.elasticsearch.common.util.SQLCommand;
+import org.xbib.elasticsearch.common.util.SinkKeyValueStreamListener;
+import org.xbib.elasticsearch.jdbc.strategy.Context;
+import org.xbib.elasticsearch.jdbc.strategy.JDBCSource;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.CallableStatement;
-import java.sql.Clob;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
+import java.sql.*;
 import java.sql.Date;
-import java.sql.DriverManager;
-import java.sql.NClob;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLDataException;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLNonTransientConnectionException;
-import java.sql.SQLRecoverableException;
-import java.sql.SQLXML;
-import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.sql.Types;
 import java.text.NumberFormat;
 import java.text.ParseException;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Properties;
-import java.util.TimeZone;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Standard source implementation.
@@ -143,6 +118,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
 
     private final static SourceMetric sourceMetric = new SourceMetric().start();
 
+    private AcknowledgeTracker acknowledgeTracker;
+
     @Override
     public String strategy() {
         return "standard";
@@ -189,6 +166,10 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
     public StandardSource<C> setPassword(String password) {
         this.password = password;
         return this;
+    }
+
+    public void setAcknowledgeTracker(AcknowledgeTracker acknowledgeTracker) {
+        this.acknowledgeTracker = acknowledgeTracker;
     }
 
     @Override
@@ -581,10 +562,16 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
      */
     @Override
     public void fetch() throws SQLException, IOException {
-        logger.debug("fetching, {} SQL commands", getStatements().size());
+        List<SQLCommand> commands = getStatements().stream().filter(command -> command.getState() == null).collect(Collectors.toList());
+
+        fetch(commands);
+    }
+
+    private void fetch(List<SQLCommand> commands) throws SQLException, IOException {
+        logger.debug("fetching, {} SQL commands", commands.size());
         DateTime dateTime = new DateTime();
         try {
-            for (SQLCommand command : getStatements()) {
+            for (SQLCommand command : commands) {
                 try {
                     if (command.isCallable()) {
                         logger.debug("{} executing callable SQL: {}", this, command);
@@ -638,6 +625,10 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
 
     @Override
     public void afterFetch() throws Exception {
+        List<SQLCommand> commands = getStatements().stream().filter(command -> Context.State.AFTER_FETCH.equals(command.getState()))
+                                                            .collect(Collectors.toList());
+        fetch(commands);
+
         shutdown();
     }
 
@@ -1153,7 +1144,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
     public StandardSource<C> closeReading() {
         try {
             if (readConnection != null && !readConnection.isClosed()) {
-                // always commit before close to finish cursors/transactions
+                // always commit before close to getFailedJobs cursors/transactions
                 if (!readConnection.getAutoCommit()) {
                     readConnection.commit();
                 }
@@ -1172,7 +1163,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
     public StandardSource<C> closeWriting() {
         try {
             if (writeConnection != null && !writeConnection.isClosed()) {
-                // always commit before close to finish cursors/transactions
+                // always commit before close to getFailedJobs cursors/transactions
                 if (!writeConnection.getAutoCommit()) {
                     writeConnection.commit();
                 }
@@ -1287,7 +1278,26 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
             } else if ("$metrics.counter".equals(s) || "$job".equals(s)) { // $job for legacy support
                 Long counter = sourceMetric != null ? sourceMetric.getCounter() : 0L;
                 statement.setLong(i, counter);
-            } else if ("$lastrowcount".equals(s)) {
+            } else if ("$ack_jobs_max".equals(s)) {
+                Long counter = acknowledgeTracker.getMaxJob();
+                statement.setLong(i, counter);
+            }else if ("$ack_jobs_failed".equals(s)) {
+                List<Long> failedJobs = acknowledgeTracker.getFailedJobs();
+                StringBuilder sb = new StringBuilder();
+
+                if(!failedJobs.isEmpty()) {
+                    boolean first = true;
+                    for (Long failedJob : failedJobs) {
+                        if (!first) sb.append(",");
+                        sb.append(failedJob);
+                        first = false;
+                    }
+                } else {
+                    sb.append("0");
+                }
+
+                statement.setString(i, sb.toString());
+            }else if ("$lastrowcount".equals(s)) {
                 statement.setLong(i, getLastRowCount());
             } else if ("$lastexceptiondate".equals(s)) {
                 DateTime dateTime = context.getDateOfThrowable();

@@ -20,10 +20,12 @@ import org.apache.logging.log4j.Logger;
 import org.xbib.elasticsearch.common.metrics.SinkMetric;
 import org.xbib.elasticsearch.common.util.IndexableObject;
 import org.xbib.elasticsearch.jdbc.strategy.Sink;
+import org.xbib.elasticsearch.jdbc.strategy.standard.AcknowledgeTracker;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
 
 public class MockSink implements Sink<MockContext> {
 
@@ -143,4 +145,9 @@ public class MockSink implements Sink<MockContext> {
         return counter;
     }
 
+
+    @Override
+    public void setAcknowledgeTracker(AcknowledgeTracker acknowledgeTracker) {
+
+    }
 }

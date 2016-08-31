@@ -16,6 +16,7 @@
 package org.xbib.elasticsearch.jdbc.strategy;
 
 import org.xbib.elasticsearch.common.metrics.SourceMetric;
+import org.xbib.elasticsearch.jdbc.strategy.standard.AcknowledgeTracker;
 
 import java.io.IOException;
 
@@ -75,4 +76,7 @@ public interface Source<C extends Context> {
     void shutdown() throws IOException;
 
     SourceMetric getMetric();
-}
+
+    void setAcknowledgeTracker(AcknowledgeTracker acknowledgeTracker);
+
+    }

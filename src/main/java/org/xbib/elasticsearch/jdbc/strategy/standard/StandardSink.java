@@ -70,6 +70,8 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
 
     private final static SinkMetric sinkMetric = new SinkMetric().start();
 
+    private AcknowledgeTracker acknowledgeTracker;
+
     @Override
     public String strategy() {
         return "standard";
@@ -224,6 +226,8 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk index action {}", request.source().toUtf8());
         }
+
+        acknowledgeTracker.trackJob(object,object.optype().toLowerCase());
         clientAPI.bulkIndex(request);
     }
 
@@ -258,6 +262,8 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk delete action {}/{}/{}", request.index(), request.type(), request.id());
         }
+
+        acknowledgeTracker.trackJob(object,"delete");
         clientAPI.bulkDelete(request);
     }
 
@@ -294,6 +300,8 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk update action {}/{}/{}", request.index(), request.type(), request.id());
         }
+
+        acknowledgeTracker.trackJob(object,"update");
         clientAPI.bulkUpdate(request);
     }
 
@@ -397,4 +405,8 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         return alias;
     }
 
+    @Override
+    public void setAcknowledgeTracker(AcknowledgeTracker acknowledgeTracker) {
+        this.acknowledgeTracker = acknowledgeTracker;
+    }
 }

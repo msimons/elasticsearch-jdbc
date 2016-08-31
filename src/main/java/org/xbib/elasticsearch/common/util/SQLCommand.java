@@ -17,6 +17,7 @@ package org.xbib.elasticsearch.common.util;
 
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.xbib.elasticsearch.jdbc.strategy.Context;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -41,6 +42,8 @@ public class SQLCommand {
     private List<Object> params = new LinkedList<>();
 
     private boolean write;
+
+    private Context.State state;
 
     private Map<String, Object> register = new HashMap<>();
 
@@ -76,6 +79,14 @@ public class SQLCommand {
 
     public boolean isCallable() {
         return callable;
+    }
+
+    public Context.State getState() {
+        return state;
+    }
+
+    public void setState(Context.State state) {
+        this.state = state;
     }
 
     public SQLCommand setWrite(boolean write) {
@@ -143,7 +154,15 @@ public class SQLCommand {
                         command.setSQL((String) m.get("statement"));
                     }
                     if (m.containsKey("parameter")) {
-                        command.setParameters(XContentMapValues.extractRawValues("parameter", m));
+                        List<Object> parameters = XContentMapValues.extractRawValues("parameter", m);
+
+                        if(parameters.contains("$ack_jobs_max") || parameters.contains("$ack_jobs_failed")){
+                            if(m.containsKey("statement") && (!m.get("statement").toString().toLowerCase().startsWith("select")))
+                            command.setState(Context.State.AFTER_FETCH);
+                        }
+
+                        command.setParameters(parameters);
+
                     }
                     if (m.containsKey("write")) {
                         command.setWrite(XContentMapValues.nodeBooleanValue(m.get("write")));
