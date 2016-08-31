@@ -21,6 +21,9 @@ import org.xbib.elasticsearch.jdbc.strategy.Context;
 import org.xbib.elasticsearch.jdbc.strategy.JDBCSource;
 import org.xbib.tools.JDBCImporter;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.Charset;
+
 public class StandardScheduleTests extends AbstractSinkTest {
 
     @Override
@@ -75,15 +78,16 @@ public class StandardScheduleTests extends AbstractSinkTest {
         assertTrue(hits > 99L);
     }
 
-    private JDBCImporter createImporter(String resource) throws Exception {
-        final JDBCImporter importer = JDBCImporter.getInstance();
+    private JDBCImporter createImporter(final String resource) throws Exception {
+        final JDBCImporter importer = new JDBCImporter();
         Context context = createContext(resource);
-        logger.info("createImporter: set context {}", context);
+        logger.info("createImporter: setting context {}", context);
         importer.setContext(context);
-        // dispatch in new thread
+        logger.info("createImporter: settings = {}", context.getSettings());
+        // dispatch in a thread
         new Thread() {
             public void run() {
-                importer.run(true);
+                importer.run();
             }
         }.start();
         return importer;

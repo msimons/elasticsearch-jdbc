@@ -1,19 +1,13 @@
 package org.xbib.elasticsearch.jdbc.strategy.column;
 
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.indices.IndexMissingException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
-import org.xbib.elasticsearch.support.AbstractNodeTestHelper;
-import org.xbib.elasticsearch.support.client.Ingest;
-import org.xbib.elasticsearch.support.client.IngestFactory;
-import org.xbib.elasticsearch.support.client.transport.BulkTransportClient;
+import org.xbib.elasticsearch.jdbc.strategy.Context;
+import org.xbib.elasticsearch.util.NodeTestUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -25,7 +19,7 @@ import java.sql.Statement;
 import java.util.Locale;
 import java.util.TimeZone;
 
-public abstract class AbstractColumnStrategyTest extends AbstractNodeTestHelper {
+public abstract class AbstractColumnStrategyTest extends NodeTestUtils {
 
     protected static ColumnSource source;
 
@@ -40,10 +34,7 @@ public abstract class AbstractColumnStrategyTest extends AbstractNodeTestHelper 
     public void beforeMethod(String starturl, String user, String password, @Optional String resourceName)
             throws Exception {
         startNodes();
-
         logger.info("nodes started");
-
-        waitForYellow("1");
         source = newSource();
         source.setUrl(starturl)
                 .setUser(user)
@@ -108,30 +99,32 @@ public abstract class AbstractColumnStrategyTest extends AbstractNodeTestHelper 
         try {
             client("1").admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
             logger.info("index {} deleted", index);
-        } catch (IndexMissingException e) {
+        } catch (Exception e) {
             logger.warn(e.getMessage());
         }
         stopNodes();
     }
 
-    protected void create(String resource) throws Exception {
-        waitForYellow("1");
+    protected Context createContext(String resource) throws Exception {
+        //waitForYellow("1");
         InputStream in = getClass().getResourceAsStream(resource);
-        logger.info("creating context");
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .loadFromStream("test", in)
-                .build().getAsSettings("jdbc");
-        context = newContext();
-        context.setSettings(settings)
-                .setIngestFactory(createIngestFactory(settings));
+        Settings settings = createSettings(resource);
+        Context context = newContext();
+        context.setSettings(settings);
+        //context.getSink().setIngestFactory(createIngestFactory(settings));
+        logger.info("created context {} with cluster name {}", context, "elasticsearch");
+        return context;
     }
 
     protected Settings createSettings(String resource)
             throws IOException {
         InputStream in = getClass().getResourceAsStream(resource);
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .loadFromStream("test", in)
-                .build().getAsSettings("jdbc");
+                .put("jdbc.elasticsearch.cluster", "elasticsearch")
+                .putArray("jdbc.elasticsearch.host", getHosts())
+                .build()
+                .getAsSettings("jdbc");
         in.close();
         return settings;
     }
@@ -157,34 +150,4 @@ public abstract class AbstractColumnStrategyTest extends AbstractNodeTestHelper 
         br.close();
     }
 
-    protected IngestFactory createIngestFactory(final Settings settings) {
-        return new IngestFactory() {
-            @Override
-            public Ingest create() throws IOException {
-                Integer maxbulkactions = settings.getAsInt("max_bulk_actions", 10000);
-                Integer maxconcurrentbulkrequests = settings.getAsInt("max_concurrent_bulk_requests",
-                        Runtime.getRuntime().availableProcessors() * 2);
-                ByteSizeValue maxvolume = settings.getAsBytesSize("max_bulk_volume", ByteSizeValue.parseBytesSizeValue("10m"));
-                TimeValue flushinterval = settings.getAsTime("flush_interval", TimeValue.timeValueSeconds(5));
-                BulkTransportClient ingest = new BulkTransportClient();
-                Settings clientSettings = ImmutableSettings.settingsBuilder()
-                        .put("cluster.name", settings.get("elasticsearch.cluster", getClusterName()))
-                        .putArray("host", getHosts())
-                        .put("port", settings.getAsInt("elasticsearch.port", 9300))
-                        .put("sniff", settings.getAsBoolean("elasticsearch.sniff", false))
-                        .put("autodiscover", settings.getAsBoolean("elasticsearch.autodiscover", false))
-                        .put("name", "importer") // prevents lookup of names.txt, we don't have it
-                        .put("client.transport.ignore_cluster_name", false) // ignore cluster name setting
-                        .put("client.transport.ping_timeout", settings.getAsTime("elasticsearch.timeout", TimeValue.timeValueSeconds(5))) //  ping timeout
-                        .put("client.transport.nodes_sampler_interval", settings.getAsTime("elasticsearch.timeout", TimeValue.timeValueSeconds(5))) // for sniff sampling
-                        .build();
-                ingest.maxActionsPerBulkRequest(maxbulkactions)
-                        .maxConcurrentBulkRequests(maxconcurrentbulkrequests)
-                        .maxVolumePerBulkRequest(maxvolume)
-                        .flushIngestInterval(flushinterval)
-                        .newClient(clientSettings);
-                return ingest;
-            }
-        };
-    }
 }

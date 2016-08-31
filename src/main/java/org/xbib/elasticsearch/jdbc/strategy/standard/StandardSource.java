@@ -17,28 +17,50 @@ package org.xbib.elasticsearch.jdbc.strategy.standard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.xbib.elasticsearch.common.keyvalue.KeyValueStreamListener;
 import org.xbib.elasticsearch.common.util.ExceptionFormatter;
-import org.xbib.elasticsearch.common.util.SQLCommand;
-import org.xbib.elasticsearch.common.util.SinkKeyValueStreamListener;
-import org.xbib.elasticsearch.common.util.SourceMetric;
+import org.xbib.elasticsearch.common.metrics.SourceMetric;
 import org.xbib.elasticsearch.jdbc.strategy.JDBCSource;
+import org.xbib.elasticsearch.common.util.SinkKeyValueStreamListener;
+import org.xbib.elasticsearch.common.util.SQLCommand;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
-import java.sql.*;
+import java.sql.Array;
+import java.sql.Blob;
+import java.sql.CallableStatement;
+import java.sql.Clob;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.Date;
+import java.sql.DriverManager;
+import java.sql.NClob;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLDataException;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLRecoverableException;
+import java.sql.SQLXML;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.NumberFormat;
 import java.text.ParseException;
-import java.util.*;
-import java.util.regex.Pattern;
-
-import static org.elasticsearch.common.collect.Lists.newLinkedList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.TimeZone;
 
 /**
  * Standard source implementation.
@@ -48,8 +70,6 @@ import static org.elasticsearch.common.collect.Lists.newLinkedList;
  * the other for writing.
  */
 public class StandardSource<C extends StandardContext> implements JDBCSource<C> {
-
-    public static final Pattern XML_PATTERN = Pattern.compile("<[^>]*>");
 
     private final static Logger logger = LogManager.getLogger("importer.jdbc.source.standard");
 
@@ -121,7 +141,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
 
     private boolean shouldTreatBinaryAsString;
 
-    private SourceMetric metric;
+    private final static SourceMetric sourceMetric = new SourceMetric().start();
 
     @Override
     public String strategy() {
@@ -145,14 +165,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
     }
 
     @Override
-    public StandardSource<C> setMetric(SourceMetric metric) {
-        this.metric = metric;
-        return this;
-    }
-
-    @Override
     public SourceMetric getMetric() {
-        return metric;
+        return sourceMetric;
     }
 
     @Override
@@ -582,10 +596,10 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                         logger.debug("{} executing SQL without params: {}", this, command);
                         execute(command);
                     }
-                    if (metric != null) {
-                        metric.getSucceeded().inc();
-                        metric.setLastExecutionStart(dateTime);
-                        metric.setLastExecutionEnd(new DateTime());
+                    if (sourceMetric != null) {
+                        sourceMetric.getSucceeded().inc();
+                        sourceMetric.setLastExecutionStart(dateTime);
+                        sourceMetric.setLastExecutionEnd(new DateTime());
                     }
                 } catch (SQLRecoverableException e) {
                     long millis = getMaxRetryWait().getMillis();
@@ -601,23 +615,23 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                         logger.debug("retrying, executing SQL without params: {}", command);
                         execute(command);
                     }
-                    if (metric != null) {
-                        metric.getSucceeded().inc();
-                        metric.setLastExecutionStart(dateTime);
-                        metric.setLastExecutionEnd(new DateTime());
+                    if (sourceMetric != null) {
+                        sourceMetric.getSucceeded().inc();
+                        sourceMetric.setLastExecutionStart(dateTime);
+                        sourceMetric.setLastExecutionEnd(new DateTime());
                     }
                 }
             }
         } catch (Exception e) {
-            if (metric != null) {
-                metric.getFailed().inc();
-                metric.setLastExecutionStart(dateTime);
-                metric.setLastExecutionEnd(new DateTime());
+            if (sourceMetric != null) {
+                sourceMetric.getFailed().inc();
+                sourceMetric.setLastExecutionStart(dateTime);
+                sourceMetric.setLastExecutionEnd(new DateTime());
             }
             throw new IOException(e);
         } finally {
-            if (metric != null) {
-                metric.incCounter();
+            if (sourceMetric != null) {
+                sourceMetric.incCounter();
             }
         }
     }
@@ -667,9 +681,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                     if (shouldPrepareResultSetMetadata()) {
                         prepare(results.getMetaData());
                     }
-                    SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
+                    SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<Object, Object>()
                             .output(context.getSink())
-                            .ingest(context.getIngest())
                             .shouldIgnoreNull(shouldIgnoreNull())
                             .shouldDetectGeo(shouldDetectGeo())
                             .shouldDetectJson(shouldDetectJson());
@@ -704,10 +717,10 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
             if (command.isQuery()) {
                 statement = prepareQuery(command.getSQL());
                 bind(statement, command.getParameters());
+                logger.info("execute sql is {} ", statement.toString());
                 results = executeQuery(statement);
-                SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
+                SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<Object, Object>()
                         .output(context.getSink())
-                        .ingest(context.getIngest())
                         .shouldIgnoreNull(shouldIgnoreNull())
                         .shouldDetectGeo(shouldDetectGeo())
                         .shouldDetectJson(shouldDetectJson());
@@ -747,9 +760,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                     register(statement, command.getRegister());
                 }
                 boolean hasRows = statement.execute();
-                SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<>()
-                        .output(context.getSink())
-                        .ingest(context.getIngest());
+                SinkKeyValueStreamListener<Object, Object> listener = new SinkKeyValueStreamListener<Object, Object>()
+                        .output(context.getSink());
                 if (hasRows) {
                     logger.debug("callable execution created result set");
                     while (hasRows) {
@@ -783,14 +795,14 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
         }
         beforeRows(command, results, listener);
         long rows = 0L;
-        if (metric != null) {
-            metric.resetCurrentRows();
+        if (sourceMetric != null) {
+            sourceMetric.resetCurrentRows();
         }
         while (nextRow(command, results, listener)) {
             rows++;
-            if (metric != null) {
-                metric.getCurrentRows().inc();
-                metric.getTotalRows().inc();
+            if (sourceMetric != null) {
+                sourceMetric.getCurrentRows().inc();
+                sourceMetric.getTotalRows().inc();
             }
         }
         setLastRowCount(rows);
@@ -876,8 +888,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
             // no register given, return without doing anything
             return;
         }
-        List<String> keys = newLinkedList();
-        List<Object> values = newLinkedList();
+        List<String> keys = new LinkedList<>();
+        List<Object> values = new LinkedList<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String k = entry.getKey();
             Map<String, Object> v = (Map<String, Object>) entry.getValue();
@@ -1093,8 +1105,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                 }
                 values.add(value);
                 getLastRow().put("$row." + metadata.getColumnLabel(i), value);
-                if (value != null && metric != null) {
-                    metric.getTotalSizeInBytes().inc(value.toString().length());
+                if (value != null && sourceMetric != null) {
+                    sourceMetric.getTotalSizeInBytes().inc(value.toString().length());
                 }
             } catch (ParseException e) {
                 logger.warn("parse error for value {}, using null instead", results.getObject(i));
@@ -1272,11 +1284,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
             } else if ("$state".equals(s)) {
                 String state = context.getState().name();
                 statement.setString(i, state);
-            } else if ("$metrics.counter".equals(s)) {
-                Long counter = metric != null ? metric.getCounter() : -0L;
-                statement.setLong(i, counter);
-            } else if ("$job".equals(s)) { //
-                Long counter = metric != null ? metric.getExternalJob() : -0L;
+            } else if ("$metrics.counter".equals(s) || "$job".equals(s)) { // $job for legacy support
+                Long counter = sourceMetric != null ? sourceMetric.getCounter() : 0L;
                 statement.setLong(i, counter);
             } else if ("$lastrowcount".equals(s)) {
                 statement.setLong(i, getLastRowCount());
@@ -1286,22 +1295,22 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
             } else if ("$lastexception".equals(s)) {
                 statement.setString(i, ExceptionFormatter.format(context.getThrowable()));
             } else if ("$metrics.lastexecutionstart".equals(s)) {
-                DateTime dateTime = metric != null ? metric.getLastExecutionStart() : null;
-                statement.setTimestamp(i, dateTime != null ? new Timestamp(dateTime.getMillis()) : null);
+                DateTime dateTime = sourceMetric != null ? sourceMetric.getLastExecutionStart() : null;
+                statement.setTimestamp(i, dateTime != null ? new Timestamp(dateTime.getMillis()) : new Timestamp(new DateTime(0).getMillis()));
             } else if ("$metrics.lastexecutionend".equals(s)) {
-                DateTime dateTime = metric != null ? metric.getLastExecutionEnd() : null;
+                DateTime dateTime = sourceMetric != null ? sourceMetric.getLastExecutionEnd() : null;
                 statement.setTimestamp(i, dateTime != null ? new Timestamp(dateTime.getMillis()) : null);
             } else if ("$metrics.totalrows".equals(s)) {
-                Long count = metric != null && metric.getTotalRows() != null ? metric.getTotalRows().count() : -1L;
+                Long count = sourceMetric != null && sourceMetric.getTotalRows() != null ? sourceMetric.getTotalRows().count() : -1L;
                 statement.setLong(i, count);
             } else if ("$metrics.totalbytes".equals(s)) {
-                Long count = metric != null && metric.getTotalSizeInBytes() != null ? metric.getTotalSizeInBytes().count() : -1L;
+                Long count = sourceMetric != null && sourceMetric.getTotalSizeInBytes() != null ? sourceMetric.getTotalSizeInBytes().count() : -1L;
                 statement.setLong(i, count);
             } else if ("$metrics.failed".equals(s)) {
-                Long count = metric != null && metric.getFailed() != null ? metric.getFailed().count() : -1L;
+                Long count = sourceMetric != null && sourceMetric.getFailed() != null ? sourceMetric.getFailed().count() : -1L;
                 statement.setLong(i, count);
             } else if ("$metrics.succeeded".equals(s)) {
-                Long count = metric != null && metric.getSucceeded() != null ? metric.getSucceeded().count() : -1L;
+                Long count = sourceMetric != null && sourceMetric.getSucceeded() != null ? sourceMetric.getSucceeded().count() : -1L;
                 statement.setLong(i, count);
             } else if (shouldPrepareDatabaseMetadata()) {
                 for (String k : getLastDatabaseMetadata().keySet()) {
@@ -1793,65 +1802,6 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
             }
 
             case Types.SQLXML: {
-                if(result.getClass().getName().equals("oracle.jdbc.driver.OracleResultSetImpl")){
-                    //OracleResultSet oracleResult = (OracleResultSet) result;
-
-                    String xml = null;
-                    try {
-                        Class orsClazz = Class.forName("oracle.jdbc.OracleResultSet");
-                        Class[] types = { int.class};
-                        Method m = orsClazz.getMethod("getOPAQUE",types);
-
-                        Object op = m.invoke(result,i);
-
-                        if (op == null) {
-                            if (logger.isDebugEnabled()) {
-                                //logger.debug("returning null column: {}", i);
-                            }
-                            return null;
-                        }
-
-                        Class xmlTypeClazz = Class.forName("oracle.xdb.XMLType");
-                        Class opaqueClazz = Class.forName("oracle.sql.OPAQUE");
-
-                        m = xmlTypeClazz.getMethod("createXML",opaqueClazz);
-
-                        Object xt = m.invoke(null,op);
-
-                        m = xmlTypeClazz.getMethod("getClobVal");
-                        Object clobval = m.invoke(xt);
-
-                        Class clobvalClazz = Class.forName("oracle.sql.CLOB");
-                        m = clobvalClazz.getMethod("stringValue");
-
-                        xml = (String) m.invoke(clobval);
-
-                        m = xmlTypeClazz.getMethod("close");
-                        m.invoke(xt);
-
-
-
-                    } catch (ClassNotFoundException e) {
-                        e.printStackTrace();
-                    } catch (NoSuchMethodException e) {
-                        e.printStackTrace();
-                    } catch (InvocationTargetException e) {
-                        e.printStackTrace();
-                    } catch (IllegalAccessException e) {
-                        e.printStackTrace();
-                    }
-
-
-
-                    if(xml != null) {
-                        xml = XML_PATTERN.matcher(xml).replaceAll(" ");
-                    }
-
-                    logger.trace("returning '{}' column: {} ",xml,i);
-
-                    return xml;
-                }
-
                 SQLXML xml = result.getSQLXML(i);
                 return xml != null ? xml.getString() : null;
             }

@@ -16,7 +16,6 @@
 package org.xbib.elasticsearch.jdbc.strategy;
 
 import org.elasticsearch.common.settings.Settings;
-import org.xbib.elasticsearch.support.client.IngestFactory;
 
 public interface Context<S extends Source, T extends Sink> {
 
@@ -81,11 +80,7 @@ public interface Context<S extends Source, T extends Sink> {
 
     State getState();
 
-    Context setIngestFactory(IngestFactory ingestFactory);
-
     void log();
 
     void shutdown();
-
-    void resetCounter();
 }

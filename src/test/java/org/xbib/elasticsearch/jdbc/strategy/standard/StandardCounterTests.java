@@ -35,17 +35,32 @@ public class StandardCounterTests extends AbstractSinkTest {
         return new StandardContext();
     }
 
+    protected void perform(String resource) throws Exception {
+        // perform a single step
+        logger.info("before execution, resetting counter");
+        source.getMetric().setCounter(0);
+        this.context = createContext(resource);
+        logger.info("execution");
+        context.execute();
+        boolean b = waitFor(context, Context.State.IDLE, 5000L);
+        logger.info("after execution: {}", b);
+    }
+
     @Test
     @Parameters({"task1", "sql1", "sql2"})
-    public void testJob(String resource, String sql1, String sql2)
+    public void testCounter(String resource, String sql1, String sql2)
             throws Exception {
+        logger.info("creating random products: {}", sql2);
         createRandomProductsJob(sql2, 100);
+        logger.info("random products created");
         Connection connection = source.getConnectionForReading();
+        logger.info("counting random products: {}", sql1);
         ResultSet results = connection.createStatement().executeQuery(sql1);
         if (!connection.getAutoCommit()) {
             connection.commit();
         }
         int count = results.next() ? results.getInt(1) : -1;
+        logger.info("random product count: {}", count);
         source.close(results);
         source.closeReading();
         assertEquals(count, 100);
@@ -61,13 +76,5 @@ public class StandardCounterTests extends AbstractSinkTest {
         count = results.next() ? results.getInt(1) : -1;
         results.close();
         assertEquals(count, 0);
-    }
-
-    @Override
-    protected Context createContext(String resource) throws Exception {
-        Context context = super.createContext(resource);
-        // set counter to 0, to ensure deletion of documents
-        context.resetCounter();
-        return context;
     }
 }

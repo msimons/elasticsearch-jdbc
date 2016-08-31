@@ -17,11 +17,7 @@ package org.xbib.elasticsearch.jdbc.strategy.standard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.indices.IndexMissingException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Optional;
@@ -29,10 +25,7 @@ import org.testng.annotations.Parameters;
 import org.xbib.elasticsearch.common.util.LocaleUtil;
 import org.xbib.elasticsearch.jdbc.strategy.Context;
 import org.xbib.elasticsearch.jdbc.strategy.JDBCSource;
-import org.xbib.elasticsearch.support.AbstractNodeTestHelper;
-import org.xbib.elasticsearch.support.client.Ingest;
-import org.xbib.elasticsearch.support.client.IngestFactory;
-import org.xbib.elasticsearch.support.client.transport.BulkTransportClient;
+import org.xbib.elasticsearch.util.NodeTestUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -50,11 +43,13 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.UUID;
 
-public abstract class AbstractSinkTest extends AbstractNodeTestHelper {
+public abstract class AbstractSinkTest extends NodeTestUtils {
 
     protected final static Logger logger = LogManager.getLogger("test.target");
 
     protected static JDBCSource source;
+
+    protected Context context;
 
     public abstract JDBCSource newSource();
 
@@ -66,7 +61,6 @@ public abstract class AbstractSinkTest extends AbstractNodeTestHelper {
             throws Exception {
         startNodes();
         logger.info("nodes started");
-        waitForYellow("1");
         source = newSource()
                 .setUrl(starturl)
                 .setUser(user)
@@ -123,7 +117,7 @@ public abstract class AbstractSinkTest extends AbstractNodeTestHelper {
         try {
             client("1").admin().indices().prepareDelete(index).execute().actionGet();
             logger.info("index {} deleted", index);
-        } catch (IndexMissingException e) {
+        } catch (Exception e) {
             logger.warn(e.getMessage());
         }
         stopNodes();
@@ -132,7 +126,7 @@ public abstract class AbstractSinkTest extends AbstractNodeTestHelper {
     protected void perform(String resource) throws Exception {
         // perform a single step
         logger.info("before execution");
-        Context context = createContext(resource);
+        this.context = createContext(resource);
         logger.info("execution");
         context.execute();
         boolean b = waitFor(context, Context.State.IDLE, 5000L);
@@ -140,18 +134,15 @@ public abstract class AbstractSinkTest extends AbstractNodeTestHelper {
     }
 
     protected Context createContext(String resource) throws Exception {
-        waitForYellow("1");
         InputStream in = getClass().getResourceAsStream(resource);
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .loadFromStream("test", in)
-                .put("jdbc.elasticsearch.cluster", getClusterName())
+        Settings settings = Settings.settingsBuilder()
+                .put("jdbc.elasticsearch.cluster", "elasticsearch")
                 .putArray("jdbc.elasticsearch.host", getHosts())
+                .loadFromStream("test", in)
                 .build()
                 .getAsSettings("jdbc");
         Context context = newContext();
-        context.setSettings(settings)
-                .setIngestFactory(createIngestFactory(settings));
-        logger.info("created context {} with cluster name {}", context, getClusterName());
+        context.setSettings(settings);
         return context;
     }
 
@@ -222,6 +213,7 @@ public abstract class AbstractSinkTest extends AbstractNodeTestHelper {
             long job = 0L;
             add(connection, sql, job, UUID.randomUUID().toString().substring(0, 32), amount, price);
         }
+        logger.info("executed {} adds", size);
         if (!connection.getAutoCommit()) {
             connection.commit();
         }
@@ -248,13 +240,12 @@ public abstract class AbstractSinkTest extends AbstractNodeTestHelper {
         BufferedReader br = new BufferedReader(new InputStreamReader(in, "UTF-8"));
         String sql;
         while ((sql = br.readLine()) != null) {
-
             try {
-                logger.trace("executing {}", sql);
+                logger.info("executing {}", sql);
                 Statement p = connection.createStatement();
                 p.execute(sql);
                 p.close();
-            } catch (SQLException e) {
+            } catch (Exception e) {
                 // ignore
                 logger.error(sql + " failed. Reason: " + e.getMessage());
             } finally {
@@ -274,37 +265,5 @@ public abstract class AbstractSinkTest extends AbstractNodeTestHelper {
             }
         } while (!found && System.currentTimeMillis() - t0 < millis);
         return found;
-    }
-
-    protected IngestFactory createIngestFactory(final Settings settings) {
-        return new IngestFactory() {
-            @Override
-            public Ingest create() throws IOException {
-                Integer maxbulkactions = settings.getAsInt("max_bulk_actions", 10000);
-                Integer maxconcurrentbulkrequests = settings.getAsInt("max_concurrent_bulk_requests",
-                        Runtime.getRuntime().availableProcessors() * 2);
-                ByteSizeValue maxvolume = settings.getAsBytesSize("max_bulk_volume", ByteSizeValue.parseBytesSizeValue("10m"));
-                TimeValue flushinterval = settings.getAsTime("flush_interval", TimeValue.timeValueSeconds(5));
-                BulkTransportClient ingest = new BulkTransportClient();
-                Settings clientSettings = ImmutableSettings.settingsBuilder()
-                        .put("cluster.name", settings.get("elasticsearch.cluster"))
-                        .putArray("host", getHosts())
-                        .put("port", settings.getAsInt("elasticsearch.port", 9300))
-                        .put("sniff", settings.getAsBoolean("elasticsearch.sniff", false))
-                        .put("autodiscover", settings.getAsBoolean("elasticsearch.autodiscover", false))
-                        .put("name", "importer") // prevents lookup of names.txt, we don't have it, and marks this node as "feeder"
-                        .put("client.transport.ignore_cluster_name", false) // ignore cluster name setting
-                        .put("client.transport.ping_timeout", settings.getAsTime("elasticsearch.timeout", TimeValue.timeValueSeconds(5))) //  ping timeout
-                        .put("client.transport.nodes_sampler_interval", settings.getAsTime("elasticsearch.timeout", TimeValue.timeValueSeconds(5))) // for sniff sampling
-                        .build();
-                logger.info("ingest factory: client settings = {}", clientSettings);
-                ingest.maxActionsPerBulkRequest(maxbulkactions)
-                        .maxConcurrentBulkRequests(maxconcurrentbulkrequests)
-                        .maxVolumePerBulkRequest(maxvolume)
-                        .flushIngestInterval(flushinterval)
-                        .newClient(clientSettings);
-                return ingest;
-            }
-        };
     }
 }

@@ -15,12 +15,10 @@
  */
 package org.xbib.elasticsearch.jdbc.strategy;
 
-import org.elasticsearch.common.settings.Settings;
+import org.xbib.elasticsearch.common.metrics.SinkMetric;
 import org.xbib.elasticsearch.common.util.IndexableObject;
-import org.xbib.elasticsearch.support.client.Metric;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * The sink is the abstraction of a destination where all the data
@@ -49,22 +47,6 @@ public interface Sink<C extends Context> {
      * @return this sink
      */
     Sink<C> setContext(C context);
-
-    /**
-     * Set index settings
-     *
-     * @param indexSettings the index settings
-     * @return this sink
-     */
-    Sink setIndexSettings(Settings indexSettings);
-
-    /**
-     * Set index type mappings
-     *
-     * @param typeMapping the index type mappings
-     * @return this sink
-     */
-    Sink setTypeMapping(Map<String, String> typeMapping);
 
     /**
      * Executed before source fetch
@@ -164,7 +146,5 @@ public interface Sink<C extends Context> {
      */
     void shutdown() throws IOException;
 
-    Sink setMetric(Metric metric);
-
-    Metric getMetric();
+    SinkMetric getMetric();
 }

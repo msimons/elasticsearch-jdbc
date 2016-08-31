@@ -18,15 +18,19 @@ package org.xbib.elasticsearch.common.util;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.shape.Shape;
-import org.elasticsearch.common.lang3.StringUtils;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.xbib.elasticsearch.common.keyvalue.KeyValueStreamListener;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,13 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener<K, V> {
 
-    private final static ESLogger logger = ESLoggerFactory.getLogger("org.xbib.elasticsearch.common.util.PlainKeyValueStreamListener");
-
     private final static Pattern p = Pattern.compile("^(.*)\\[(.*?)\\]$");
-
-    public static final String STRING_NILL_VALUE = "_null_";
-    public static final Double DOUBLE_NILL_VALUE = -0.1;
-    public static final String BACKUP_FIELD_PREFIX = "##";
 
     /**
      * The current structured object
@@ -166,44 +164,7 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
         }
         // create current object from values by sequentially merging the values
         for (int i = 0; i < keys.size() && i < values.size(); i++) {
-
-            V currentFieldValue = values.get(i);
-            final K currentFieldKey = keys.get(i);
-
-            // Do not index the backup field itself
-            if (String.valueOf(currentFieldKey).startsWith(BACKUP_FIELD_PREFIX)) {
-                continue;
-            }
-
-            if(STRING_NILL_VALUE.equals(currentFieldValue) || DOUBLE_NILL_VALUE.equals(currentFieldValue)) {
-
-                // We will first check if there is a backup field before we check if the current field value. This is done
-                // in this order because the lookup for the current field value is a relative expensive call.
-
-                // Check if there is a backup field value available
-                final String backupFieldName = BACKUP_FIELD_PREFIX + currentFieldKey;
-                int backupFieldIndex = keys.indexOf(backupFieldName);
-                if (backupFieldIndex >= 0) {
-                    currentFieldValue = values.get(backupFieldIndex);
-                } else {
-                    continue;
-                }
-
-                // Check if backup field value is also a valid value.
-                if(STRING_NILL_VALUE.equals(currentFieldValue) || DOUBLE_NILL_VALUE.equals(currentFieldValue)) {
-                    continue;
-                }
-
-                // All requirements of the backup process are now valid. Now check if there is also a value or we have to set the backup field value
-                Object existingFieldValue = fieldValue(prev.index(), prev.type(), prev.id(), String.valueOf(currentFieldKey));
-                if (existingFieldValue != null) {
-                    currentFieldValue = (V) existingFieldValue;
-                }
-
-                // Backup field value will be used. Continue default flow...
-            }
-
-            Map map = null;
+            Object v = null;
             try {
                 String s = values.get(i).toString();
                 // geo content?
@@ -218,43 +179,52 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
                 }
                 // JSON content?
                 if (shouldDetectJson) {
-                    map = JsonXContent.jsonXContent.createParser(s).mapAndClose();
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(s);
+                    XContentParser.Token token = parser.currentToken();
+                    if(token == null) {
+                        token = parser.nextToken();
+                    }
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        v = parser.map();
+                    } else if (token == XContentParser.Token.START_ARRAY) {
+                        v = parser.list();
+                    }
                 }
             } catch (Exception e) {
                 // ignore
             }
-
-            Object v = map != null && map.size() > 0 ? map : currentFieldValue;
-            Map<String, Object> m = merge(current.source(), currentFieldKey, v);
-
+            if(v == null || (v instanceof Map && ((Map) v).isEmpty())) {
+                v = values.get(i);
+            }
+            Map<String, Object> m = merge(current.source(), keys.get(i), v);
             current.source(m);
         }
         return this;
     }
 
     protected void map(K k, V v, IndexableObject current) throws IOException {
-        if (ControlKeys._optype.name().equals(k)) {
+        if (ControlKeys._optype.name().equalsIgnoreCase(k.toString())) {
             current.optype(v.toString());
-        } else if (ControlKeys._index.name().equals(k)) {
+        } else if (ControlKeys._index.name().equalsIgnoreCase(k.toString())) {
             current.index(v.toString());
-        } else if (ControlKeys._type.name().equals(k)) {
+        } else if (ControlKeys._type.name().equalsIgnoreCase(k.toString())) {
             current.type(v.toString());
-        } else if (ControlKeys._id.name().equals(k)) {
+        } else if (ControlKeys._id.name().equalsIgnoreCase(k.toString())) {
             current.id(v.toString());
-        } else if (ControlKeys._version.name().equals(k)) {
-            current.meta(k.toString(), v.toString());
-        } else if (ControlKeys._routing.name().equals(k)) {
-            current.meta(k.toString(), v.toString());
-        } else if (ControlKeys._parent.name().equals(k)) {
-            current.meta(k.toString(), v.toString());
-        } else if (ControlKeys._timestamp.name().equals(k)) {
-            current.meta(k.toString(), v.toString());
-        } else if (ControlKeys._ttl.name().equals(k)) {
-            current.meta(k.toString(), v.toString());
-        } else if (ControlKeys._job.name().equals(k)) {
-            current.meta(k.toString(), v.toString());
-        } else if (ControlKeys._source.name().equals(k)) {
-            current.source(JsonXContent.jsonXContent.createParser(v.toString()).mapAndClose());
+        } else if (ControlKeys._version.name().equalsIgnoreCase(k.toString())) {
+            current.meta(ControlKeys._version.name(), v.toString());
+        } else if (ControlKeys._routing.name().equalsIgnoreCase(k.toString())) {
+            current.meta(ControlKeys._routing.name(), v.toString());
+        } else if (ControlKeys._parent.name().equalsIgnoreCase(k.toString())) {
+            current.meta(ControlKeys._parent.name(), v.toString());
+        } else if (ControlKeys._timestamp.name().equalsIgnoreCase(k.toString())) {
+            current.meta(ControlKeys._timestamp.name(), v.toString());
+        } else if (ControlKeys._ttl.name().equalsIgnoreCase(k.toString())) {
+            current.meta(ControlKeys._ttl.name(), v.toString());
+        } else if (ControlKeys._job.name().equalsIgnoreCase(k.toString())) {
+            current.meta(ControlKeys._job.name(), v.toString());
+        } else if (ControlKeys._source.name().equalsIgnoreCase(k.toString())) {
+            current.source(JsonXContent.jsonXContent.createParser(v.toString()).map());
         }
     }
 
@@ -266,9 +236,6 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
      */
     public KeyValueStreamListener<K, V> end() throws IOException {
         if (prev != null) {
-            if(StringUtils.isNotBlank(current.meta(ControlKeys._job.name()))) {
-                prev.meta(ControlKeys._job.name(),current.meta(ControlKeys._job.name()));
-            }
             prev.source(current.source());
             end(prev);
         }
@@ -390,7 +357,10 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
      * @return a new structured object
      */
     private IndexableObject newObject() {
-        return new PlainIndexableObject().ignoreNull(shouldIgnoreNull);
+        Map<String,String> map = new HashMap<>();
+        map.put("ignore_null", Boolean.toString(shouldIgnoreNull));
+        map.put("force_array", "false");
+        return new PlainIndexableObject(new ToXContent.MapParams(map));
     }
 
     private boolean shouldAutoGenID() {
@@ -422,10 +392,6 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
                 return false;
             }
         }
-    }
-
-    public Object fieldValue(String index, String type, String id, String fieldName) {
-        return null;
     }
 
 }

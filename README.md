@@ -2,9 +2,8 @@
 
 Image by [icons8](http://www.iconsdb.com/icons8/?icon=database) Creative Commons Attribution-NoDerivs 3.0 Unported.
 
-[Follow me on twitter](https://twitter.com/xbib)
-
 # JDBC importer for Elasticsearch
+
 ![Travis](https://api.travis-ci.org/jprante/elasticsearch-jdbc.png)
 
 The Java Database Connection (JDBC) importer allows to fetch data from JDBC sources for
@@ -37,14 +36,33 @@ you can issue this from the command line
 And that's it. Now you can check your Elasticsearch cluster for the index `jdbc` or your Elasticsearch logs
 about what happened.
 
-## Recent versions
+## Compatiblity matrix
 
-| Release date | Importer version | Elasticsearch version |
-| -------------| -----------------| ----------------------|
-| Sep 29 2015  | 1.7.2.1          | 1.7.2                 |
-| Jul 24 2015  | 1.7.0.1          | 1.7.0                 |
-| Jul 24 2015  | 1.6.0.1          | 1.6.0                 |
-| Jun    2015  | 1.5.2.0          | 1.5.2                 |
+| Release date | JDBC Importer version | Elasticsearch version |
+| -------------| ----------------------| ----------------------|
+| Aug 28 2016  | 2.3.4.1               | 2.3.4                 |
+| Aug  1 2016  | 2.3.4.0               | 2.3.4                 |
+| Jul  6 2016  | 2.3.3.1               | 2.3.3                 |
+| May 28 2016  | 2.3.3.0               | 2.3.3                 |
+| May 27 2016  | 2.3.2.0               | 2.3.2                 |
+| Apr  9 2016  | 2.3.1.0               | 2.3.1                 |
+| Apr  9 2016  | 2.2.1.0               | 2.2.1                 |
+| Feb  5 2016  | 2.2.0.0               | 2.2.0                 |
+| Dec 23 2015  | 2.1.1.2               | 2.1.1                 |
+| Nov 29 2015  | 2.1.0.0               | 2.1.0                 |
+| Oct 29 2015  | 2.0.0.1               | 2.0.0                 |
+| Oct 28 2015  | 2.0.0.0               | 2.0.0                 |
+| Oct 23 2015  | 1.7.3.0               | 1.7.3                 |
+| Sep 29 2015  | 1.7.2.1               | 1.7.2                 |
+| Jul 24 2015  | 1.7.0.1               | 1.7.0                 |
+| Jul 24 2015  | 1.6.0.1               | 1.6.0                 |
+| Jun    2015  | 1.5.2.0               | 1.5.2                 |
+
+## Quick links
+
+JDBC importer 2.3.4.0
+
+`http://xbib.org/repository/org/xbib/elasticsearch/importer/elasticsearch-jdbc/2.3.4.0/elasticsearch-jdbc-2.3.4.0-dist.zip`
 
 ## Installation
 
@@ -70,7 +88,7 @@ about what happened.
 ## Bundled drivers
 
 The JDBC importer comes with open source JDBC drivers bundled for your convenience. 
-They are not part of the JDBC importer, hence, there is no support and no gurarantuee the bundled drivers will work.
+They are not part of the JDBC importer, hence, there is no support and no guarantee the bundled drivers will work.
 Please read the JDBC driver license files attached in the distribution.
 JDBC importer does not link against the code of the drivers. If you do not want the drivers jars,
 they can be safely removed or replaced by other JDBC drivers at your choice.
@@ -83,6 +101,15 @@ The Maven project site is available at [Github](http://jprante.github.io/elastic
 
 All feedback is welcome! If you find issues, please post them at
 [Github](https://github.com/jprante/elasticsearch-jdbc/issues)
+
+# Contact
+
+[Follow me on twitter](https://twitter.com/xbib)
+
+You find this software useful and want to honor me for my work? Please donate. 
+Donations will also help to keep up the development of open source Elasticsearch add-ons.
+
+[![PayPal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=GVHFQYZ9WZ8HG)
 
 # Documentation
 
@@ -130,14 +157,8 @@ The importer can either be executed via stdin (for example with echo)
 		org.xbib.tools.Runner \
 		org.xbib.tools.JDBCImporter
 
-<<<<<<< HEAD
-`name` - the name of the feeder (will be used in the status monitoring)
-
-`max_bulk_actions` - the length of each bulk index request submitted (default: 10000)
-=======
 or with explicit file name parameter from command line. Here is an example
 where `statefile.json` is a file which is loaded before execution.
->>>>>>> 0431f31af2742125bf2195b3c8d9ce9ea38dca90
 
 	java \
 		-cp "${lib}/*" \
@@ -237,6 +258,31 @@ Here is the list of parameters for the `jdbc` block in the definition.
 
 `connection_properties` - a map for the connection properties for driver connection creation. Default is `null`
 
+`schedule` - a single or a list of cron expressions for scheduled execution. Syntax is equivalent to the
+Quartz cron expression format (see below for syntax)
+
+`threadpoolsize` - a thread pool size for the scheduled executions for `schedule` parameter. If set to `1`, all jobs will be executed serially. Default is `4`.
+
+`interval` - a time value for the delay between two runs (default: not set)
+
+`elasticsearch.cluster` - Elasticsearch cluster name
+
+`elasticsearch.host` - array of Elasticsearch host specifications (host name or `host:port`)
+
+`elasticsearch.port` -  port of Elasticsearch host
+
+`elasticsearch.autodiscover` - if `true`, JDBC importer will try to connect to all cluster nodes. Default is `false`
+
+`max_bulk_actions` - the length of each bulk index request submitted (default: 10000)
+
+`max_concurrent_bulk_requests` - the maximum number of concurrent bulk requests (default: 2 * number of CPU cores)
+
+`max_bulk_volume` - a byte size parameter for the maximum volume allowed for a bulk request (default: "10m")
+
+`max_request_wait` - a time value for the maximum wait time for a response of a bulk request (default: "60s")
+
+`flush_interval` - a time value for the interval period of flushing index docs to a bulk action (default: "5s")
+
 `index` - the Elasticsearch index used for indexing
 
 `type` - the Elasticsearch type of the index used for indexing
@@ -264,16 +310,6 @@ Here is the list of parameters for the `jdbc` block in the definition.
 ## Overview about the default parameter settings
 
 	{
-	    "name" : "My example feeder"
-        "strategy" : "simple",
-        "schedule" : null,
-        "interval" : 0L,
-        "threadpoolsize" : 4,
-        "max_bulk_actions" : 10000,
-        "max_concurrent_bulk_requests" : 2 * available CPU cores,
-        "max_bulk_volume" : "10m",
-        "max_request_wait" : "60s",
-        "flush_interval" : "5s",
 	    "jdbc" : {
 			"strategy" : "standard",
 	        "url" : null,
@@ -651,11 +687,12 @@ column `mytimestamp`:
         "type" : "jdbc",
         "jdbc" : {
 	        "url" : "jdbc:mysql://localhost:3306/test",
+            "statefile" : "statefile.json",
 	        "user" : "",
 	        "password" : "",
             "sql" : [
                 {
-                    "statement" : "select * from \"products\" where \"mytimestamp\" > ?",
+                    "statement" : "select * from products where mytimestamp > ?",
                     "parameter" : [ "$metrics.lastexecutionstart" ]
                 }
             ],
@@ -663,6 +700,31 @@ column `mytimestamp`:
             "type" : "my_jdbc_type"
         }
     }
+
+the first time you run the script, it will generate the statefile.json file like this
+```
+{
+  "type" : "jdbc",
+  "jdbc" : { 
+    "password" : "",
+    "index" : "my_jdbc_index",
+    "statefile" : "statefile.json",
+    "metrics" : { 
+      "lastexecutionstart" : "2016-03-27T06:37:09.165Z",
+      "lastexecutionend" : "2016-03-27T06:37:09.501Z",
+      "counter" : "1" 
+    },  
+    "type" : "my_jdbc_type",
+    "user" : "",
+    "url" : "jdbc:mysql://localhost:3306/test",
+    "sql" : [ { 
+      "statement" : "select * from products where mytimestamp > ?", 
+      "parameter" : [ "$metrics.lastexecutionstart" ]
+    } ] 
+  }
+}
+```
+after this, you can select incremental data from table.
 
 ## Stored procedures or callable statements
 

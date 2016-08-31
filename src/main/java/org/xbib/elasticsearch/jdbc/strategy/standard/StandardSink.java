@@ -17,24 +17,37 @@ package org.xbib.elasticsearch.jdbc.strategy.standard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
-import org.xbib.elasticsearch.jdbc.strategy.Sink;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.xbib.elasticsearch.common.metrics.SinkMetric;
 import org.xbib.elasticsearch.common.util.ControlKeys;
 import org.xbib.elasticsearch.common.util.IndexableObject;
-import org.xbib.elasticsearch.support.client.Ingest;
-import org.xbib.elasticsearch.support.client.Metric;
+import org.xbib.elasticsearch.helper.client.ClientAPI;
+import org.xbib.elasticsearch.helper.client.ClientBuilder;
+import org.xbib.elasticsearch.jdbc.strategy.Sink;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Standard sink implementation. This implementation uses bulk processing,
@@ -47,9 +60,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
 
     protected C context;
 
-    protected Settings indexSettings;
-
-    protected Map<String, String> indexMappings;
+    protected ClientAPI clientAPI;
 
     protected String index;
 
@@ -57,7 +68,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
 
     protected String id;
 
-    private Metric metric;
+    private final static SinkMetric sinkMetric = new SinkMetric().start();
 
     @Override
     public String strategy() {
@@ -66,7 +77,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
 
     @Override
     public StandardSink<C> newInstance() {
-        return new StandardSink<C>();
+        return new StandardSink<>();
     }
 
     @Override
@@ -76,78 +87,71 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
     }
 
     @Override
-    public StandardSink<C> setMetric(Metric metric) {
-        this.metric = metric;
-        return this;
-    }
-
-    @Override
-    public Metric getMetric() {
-        return metric;
+    public SinkMetric getMetric() {
+        return sinkMetric;
     }
 
     @Override
     public synchronized void beforeFetch() throws IOException {
-        Ingest ingest = context.getOrCreateIngest(metric);
-
-
-        if (ingest == null) {
-            logger.warn("no ingest found");
-            return;
+        Settings settings = context.getSettings();
+        String index = settings.get("index", "jdbc");
+        String type = settings.get("type", "jdbc");
+        if (clientAPI == null) {
+            clientAPI = createClient(settings);
+            if (clientAPI.client() != null) {
+                int pos = index.indexOf('\'');
+                if (pos >= 0) {
+                    SimpleDateFormat formatter = new SimpleDateFormat();
+                    formatter.applyPattern(index);
+                    index = formatter.format(new Date());
+                }
+                try {
+                    index = resolveAlias(index);
+                } catch (Exception e) {
+                    logger.warn("can not resolve index {}", index);
+                }
+                setIndex(index);
+                setType(type);
+                try {
+                    createIndex(settings, index, type);
+                } catch (IndexAlreadyExistsException e) {
+                    logger.warn(e.getMessage());
+                }
+            }
+            clientAPI.waitForCluster("YELLOW", TimeValue.timeValueSeconds(30));
         }
-        if (ingest.client() != null && !ingest.client().admin().indices().prepareExists(index).execute().actionGet().isExists()) {
-            logger.info("creating index {} with settings = {} and mappings = {}",
-                    index,
-                    indexSettings != null ? indexSettings.getAsMap() : "",
-                    indexMappings != null ? indexMappings : "");
-            ingest.newIndex(index, indexSettings, indexMappings);
-        }
-        long startRefreshInterval = indexSettings != null ?
-                indexSettings.getAsTime("bulk." + index + ".refresh_interval.start",
-                        TimeValue.timeValueSeconds(-1)).getMillis() : -1L;
-        long stopRefreshInterval = indexSettings != null ?
-                indexSettings.getAsTime("bulk." + index + ".refresh_interval.stop",
-                        indexSettings.getAsTime("index.refresh_interval", TimeValue.timeValueSeconds(1))).getMillis() : 1000L;
-        ingest.startBulk(index, startRefreshInterval, stopRefreshInterval);
     }
 
     @Override
     public synchronized void afterFetch() throws IOException {
-        Ingest ingest = context.getIngest();
-        if (ingest == null) {
+        if (clientAPI == null) {
             return;
         }
+        logger.debug("afterFetch: flush");
+        flushIngest();
         logger.debug("afterFetch: stop bulk");
-        ingest.stopBulk(index);
+        clientAPI.stopBulk(index);
         logger.debug("afterFetch: refresh index");
-        ingest.refreshIndex(index);
-
-        logger.debug("afterFetch: after ingest shutdown");
+        clientAPI.refreshIndex(index);
+        logger.debug("afterFetch: before client shutdown");
+        clientAPI.shutdown();
+        clientAPI = null;
+        logger.debug("afterFetch: after client shutdown");
     }
 
     @Override
     public synchronized void shutdown() {
-        Ingest ingest = context.getIngest();
-        if(ingest == null) {
+        if (clientAPI == null) {
             return;
         }
         try {
-            ingest.stopBulk(index);
+            logger.info("shutdown in progress");
+            flushIngest();
+            clientAPI.stopBulk(index);
+            clientAPI.shutdown();
         } catch (IOException e) {
             logger.error(e.getMessage(), e);
         }
-    }
-
-    @Override
-    public StandardSink setIndexSettings(Settings indexSettings) {
-        this.indexSettings = indexSettings;
-        return this;
-    }
-
-    @Override
-    public StandardSink setTypeMapping(Map<String, String> typeMapping) {
-        this.indexMappings = typeMapping;
-        return this;
     }
 
     @Override
@@ -185,8 +189,7 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
 
     @Override
     public void index(IndexableObject object, boolean create) throws IOException {
-        Ingest ingest = context.getIngest();
-        if (ingest == null) {
+        if (clientAPI == null) {
             return;
         }
         if (Strings.hasLength(object.index())) {
@@ -218,21 +221,15 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (object.meta(ControlKeys._ttl.name()) != null) {
             request.ttl(Long.parseLong(object.meta(ControlKeys._ttl.name())));
         }
-
-        registerJob(object);
-
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk index action {}", request.source().toUtf8());
         }
-
-        ingest.bulkIndex(request);
+        clientAPI.bulkIndex(request);
     }
 
     @Override
     public void delete(IndexableObject object) {
-        Ingest ingest = context.getIngest();
-
-        if (ingest == null) {
+        if (clientAPI == null) {
             return;
         }
         if (Strings.hasLength(object.index())) {
@@ -258,36 +255,15 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (object.meta(ControlKeys._parent.name()) != null) {
             request.parent(object.meta(ControlKeys._parent.name()));
         }
-
-        registerJob(object);
-
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk delete action {}/{}/{}", request.index(), request.type(), request.id());
         }
-        ingest.bulkDelete(request);
-    }
-
-    private void registerJob(IndexableObject object) {
-        if (context.getSource().getMetric() == null) {
-            return;
-        }
-
-        if (object.meta(ControlKeys._job.name()) != null) {
-            long job = Long.parseLong(object.meta(ControlKeys._job.name()));
-
-            if (job > context.getSource().getMetric().getExternalJob()) {
-                context.getSource().getMetric().setExternalJob(job);
-                logger.debug("Registered job ID {} as handled", job);
-            }
-        }
-
+        clientAPI.bulkDelete(request);
     }
 
     @Override
     public void update(IndexableObject object) throws IOException {
-        Ingest ingest = context.getIngest();
-
-        if (ingest == null) {
+        if (clientAPI == null) {
             return;
         }
         if (Strings.hasLength(object.index())) {
@@ -315,20 +291,110 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         if (object.meta(ControlKeys._parent.name()) != null) {
             request.parent(object.meta(ControlKeys._parent.name()));
         }
-
-        registerJob(object);
-
         if (logger.isTraceEnabled()) {
             logger.trace("adding bulk update action {}/{}/{}", request.index(), request.type(), request.id());
         }
-
-        ingest.bulkUpdate(request);
+        clientAPI.bulkUpdate(request);
     }
-
 
     @Override
     public void flushIngest() throws IOException {
+        if (clientAPI == null) {
+            return;
+        }
+        clientAPI.flushIngest();
+        // wait for all outstanding bulk requests before continuing. Estimation is 60 seconds
+        try {
+            clientAPI.waitForResponses(TimeValue.timeValueSeconds(60));
+        } catch (InterruptedException e) {
+            logger.warn("interrupted while waiting for responses");
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            logger.warn("exception while executing", e);
+        }
+    }
 
+    private ClientAPI createClient(Settings settings) {
+        Settings.Builder settingsBuilder = Settings.settingsBuilder()
+                .put("cluster.name", settings.get("elasticsearch.cluster.name", settings.get("elasticsearch.cluster", "elasticsearch")))
+                .putArray("host", settings.getAsArray("elasticsearch.host"))
+                .put("port", settings.getAsInt("elasticsearch.port", 9300))
+                .put("sniff", settings.getAsBoolean("elasticsearch.sniff", false))
+                .put("autodiscover", settings.getAsBoolean("elasticsearch.autodiscover", false))
+                .put("name", "importer") // prevents lookup of names.txt, we don't have it
+                .put("client.transport.ignore_cluster_name", false) // ignore cluster name setting
+                .put("client.transport.ping_timeout", settings.getAsTime("elasticsearch.timeout", TimeValue.timeValueSeconds(5))) //  ping timeout
+                .put("client.transport.nodes_sampler_interval", settings.getAsTime("elasticsearch.timeout", TimeValue.timeValueSeconds(5))); // for sniff sampling
+        // optional found.no transport plugin
+        if (settings.get("transport.type") != null) {
+            settingsBuilder.put("transport.type", settings.get("transport.type"));
+        }
+        // copy found.no transport settings
+        Settings foundTransportSettings = settings.getAsSettings("transport.found");
+        if (foundTransportSettings != null) {
+            Map<String,String> foundTransportSettingsMap = foundTransportSettings.getAsMap();
+            for (Map.Entry<String,String> entry : foundTransportSettingsMap.entrySet()) {
+                settingsBuilder.put("transport.found." + entry.getKey(), entry.getValue());
+            }
+        }
+        return ClientBuilder.builder()
+                .put(settingsBuilder.build())
+                .put(ClientBuilder.MAX_ACTIONS_PER_REQUEST, settings.getAsInt("max_bulk_actions", 10000))
+                .put(ClientBuilder.MAX_CONCURRENT_REQUESTS, settings.getAsInt("max_concurrent_bulk_requests",
+                        Runtime.getRuntime().availableProcessors() * 2))
+                .put(ClientBuilder.MAX_VOLUME_PER_REQUEST, settings.getAsBytesSize("max_bulk_volume", ByteSizeValue.parseBytesSizeValue("10m", "")))
+                .put(ClientBuilder.FLUSH_INTERVAL, settings.getAsTime("flush_interval", TimeValue.timeValueSeconds(5)))
+                .setMetric(sinkMetric)
+                .toBulkTransportClient();
+    }
+
+    private void createIndex(Settings settings, String index, String type) throws IOException {
+        if (index == null) {
+            return;
+        }
+        if (clientAPI.client() != null) {
+            try {
+                clientAPI.waitForCluster("YELLOW", TimeValue.timeValueSeconds(30));
+                if (settings.getAsStructuredMap().containsKey("index_settings")) {
+                    Settings indexSettings = settings.getAsSettings("index_settings");
+                    Map<String,String> mappings = new HashMap<>();
+                    if (type != null) {
+                        Settings typeMapping = settings.getAsSettings("type_mapping");
+                        XContentBuilder builder = jsonBuilder();
+                        builder.startObject();
+                        typeMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                        builder.endObject();
+                        mappings.put(type, builder.string());
+                    }
+                    logger.info("creating index {} type {} with mapping {}", index, type, mappings);
+                    clientAPI.newIndex(index, indexSettings, mappings);
+                    logger.info("index created");
+                    long startRefreshInterval = indexSettings.getAsTime("bulk." + index + ".refresh_interval.start",
+                                    TimeValue.timeValueMillis(-1L)).getMillis();
+                    long stopRefreshInterval = indexSettings.getAsTime("bulk." + index + ".refresh_interval.stop",
+                                    indexSettings.getAsTime("index.refresh_interval", TimeValue.timeValueSeconds(1))).getMillis();
+                    logger.info("start bulk mode, refresh at start = {}, refresh at stop = {}", startRefreshInterval, stopRefreshInterval);
+                    clientAPI.startBulk(index, startRefreshInterval, stopRefreshInterval);
+                }
+            } catch (Exception e) {
+                if (!settings.getAsBoolean("ignoreindexcreationerror", false)) {
+                    throw e;
+                } else {
+                    logger.warn("index creation error, but configured to ignore", e);
+                }
+            }
+        }
+    }
+
+    private String resolveAlias(String alias) {
+        if (clientAPI.client() == null) {
+            return alias;
+        }
+        GetAliasesResponse getAliasesResponse = clientAPI.client().prepareExecute(GetAliasesAction.INSTANCE).setAliases(alias).execute().actionGet();
+        if (!getAliasesResponse.getAliases().isEmpty()) {
+            return getAliasesResponse.getAliases().keys().iterator().next().value;
+        }
+        return alias;
     }
 
 }
