@@ -40,6 +40,10 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
 
     private final static Pattern p = Pattern.compile("^(.*)\\[(.*?)\\]$");
 
+    public static final String STRING_NILL_VALUE = "_null_";
+    public static final Double DOUBLE_NILL_VALUE = -0.1;
+    public static final String BACKUP_FIELD_PREFIX = "##";
+
     /**
      * The current structured object
      */
@@ -166,20 +170,57 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
         for (int i = 0; i < keys.size() && i < values.size(); i++) {
             Object v = null;
             try {
-                String s = values.get(i).toString();
+                String currentFieldValue = values.get(i).toString();
+
+                final K currentFieldKey = keys.get(i);
+
+                // Do not index the backup field itself
+                if (String.valueOf(currentFieldKey).startsWith(BACKUP_FIELD_PREFIX)) {
+                    continue;
+                }
+
+                if(STRING_NILL_VALUE.equals(currentFieldValue) || DOUBLE_NILL_VALUE.equals(currentFieldValue)) {
+
+                    // We will first check if there is a backup field before we check if the current field value. This is done
+                    // in this order because the lookup for the current field value is a relative expensive call.
+
+                    // Check if there is a backup field value available
+                    final String backupFieldName = BACKUP_FIELD_PREFIX + currentFieldKey;
+                    int backupFieldIndex = keys.indexOf(backupFieldName);
+                    if (backupFieldIndex >= 0) {
+                        currentFieldValue = values.get(backupFieldIndex).toString();
+                    } else {
+                        continue;
+                    }
+
+                    // Check if backup field value is also a valid value.
+                    if(STRING_NILL_VALUE.equals(currentFieldValue) || DOUBLE_NILL_VALUE.equals(currentFieldValue)) {
+                        continue;
+                    }
+
+                    // All requirements of the backup process are now valid. Now check if there is also a value or we have to set the backup field value
+                    Object existingFieldValue = fieldValue(prev.index(), prev.type(), prev.id(), String.valueOf(currentFieldKey));
+                    if (existingFieldValue != null) {
+                        currentFieldValue = existingFieldValue.toString();
+                    }
+
+                    // Backup field value will be used. Continue default flow...
+                }
+
+
                 // geo content?
-                if (shouldDetectGeo && s.startsWith("POLYGON(") || s.startsWith("POINT(")) {
+                if (shouldDetectGeo && currentFieldValue.startsWith("POLYGON(") || currentFieldValue.startsWith("POINT(")) {
                     SpatialContext ctx = JtsSpatialContext.GEO;
-                    Shape shape = ctx.readShapeFromWkt(s);
+                    Shape shape = ctx.readShapeFromWkt(currentFieldValue);
                     XContentBuilder builder = jsonBuilder();
                     builder.startObject();
                     GeoJSONShapeSerializer.serialize(shape, builder);
                     builder.endObject();
-                    s = builder.string();
+                    currentFieldValue = builder.string();
                 }
                 // JSON content?
                 if (shouldDetectJson) {
-                    XContentParser parser = JsonXContent.jsonXContent.createParser(s);
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(currentFieldValue);
                     XContentParser.Token token = parser.currentToken();
                     if(token == null) {
                         token = parser.nextToken();
@@ -392,6 +433,10 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
                 return false;
             }
         }
+    }
+
+    public Object fieldValue(String index, String type, String id, String fieldName) {
+        return null;
     }
 
 }
