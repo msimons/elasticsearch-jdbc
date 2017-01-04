@@ -20,8 +20,7 @@ public class AcknowledgeTracker {
     }
 
     public void trackJob(IndexableObject indexableObject, String optype) {
-        // TODO: statische index en type dient uit feeder configuratie afkomstig te zijn of uit het indexable object
-        DocumentIdentity documentIdentity = new DocumentIdentity("test","marcogerard",indexableObject.id(),optype);
+        DocumentIdentity documentIdentity = new DocumentIdentity(indexableObject.index(),indexableObject.type(), indexableObject.id(), optype);
 
         String job = indexableObject.meta(ControlKeys._job.name());
 
@@ -29,9 +28,9 @@ public class AcknowledgeTracker {
     }
 
     public List<Long> getFailedJobs() {
-        return jobs.stream().filter(identityJob ->
-                !acknowledgeMetric.getResult().containsKey(identityJob.getDocumentIdentity())
-                || !acknowledgeMetric.getResult().get(identityJob.getDocumentIdentity()))
+        return jobs.stream()
+                .filter(identityJob -> !acknowledgeMetric.getResult().containsKey(identityJob.getDocumentIdentity())
+                                        || !acknowledgeMetric.getResult().get(identityJob.getDocumentIdentity()))
                 .map(DocumentIdentityJob::getJob).collect(Collectors.toList());
     }
 
