@@ -37,16 +37,8 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -64,6 +56,7 @@ public class JDBCImporter
 
     private ExecutorService executorService;
 
+    private static final AtomicInteger threadPoolExecutors = new AtomicInteger();
     private ThreadPoolExecutor threadPoolExecutor;
 
     private List<Future> futures;
@@ -179,7 +172,12 @@ public class JDBCImporter
         setQueue(queue);
         SettingsPipelineRequest element = new SettingsPipelineRequest().set(settings);
         getQueue().put(element);
-        this.executorService = Executors.newFixedThreadPool(settings.getAsInt("concurrency", 1));
+
+        if (this.executorService == null) {
+            this.executorService = Executors.newFixedThreadPool(settings.getAsInt("concurrency", 1), r ->
+                    new Thread(r, "FixedThreadPool-" + threadPoolExecutors.getAndIncrement()));
+        }
+
         logger.debug("prepare ended");
     }
 
@@ -222,10 +220,12 @@ public class JDBCImporter
             logger.info("scheduled with cron expressions {}", Arrays.asList(schedule));
         } else if (seconds > 0L) {
             Thread thread = new Thread(this);
-            ScheduledThreadPoolExecutor scheduledThreadPoolExecutor =
-                    new ScheduledThreadPoolExecutor(settings.getAsInt("threadpoolsize", 1));
+
+            int threadPoolSize = settings.getAsInt("threadpoolsize", 1);
+            ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(threadPoolSize, r ->
+                    new Thread(r, "ScheduledThreadPoolExecutor-" + threadPoolExecutors.getAndIncrement()));
             futures.add(scheduledThreadPoolExecutor.scheduleAtFixedRate(thread, 0L, seconds, TimeUnit.SECONDS));
-            this.threadPoolExecutor = scheduledThreadPoolExecutor;
+            threadPoolExecutor = scheduledThreadPoolExecutor;
             logger.info("scheduled at fixed rate of {} seconds", seconds);
         }
         return futures;
