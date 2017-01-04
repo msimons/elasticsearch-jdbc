@@ -40,6 +40,7 @@ about what happened.
 
 | Release date | JDBC Importer version | Elasticsearch version |
 | -------------| ----------------------| ----------------------|
+| Jan 04 2017  | 2.3.4.1-msimons       | 2.3.4                 |
 | Aug 28 2016  | 2.3.4.1               | 2.3.4                 |
 | Aug  1 2016  | 2.3.4.0               | 2.3.4                 |
 | Jul  6 2016  | 2.3.3.1               | 2.3.3                 |
@@ -60,7 +61,7 @@ about what happened.
 
 ## Quick links
 
-JDBC importer 2.3.4.0
+JDBC importer 2.3.4.1-msimons
 
 `http://xbib.org/repository/org/xbib/elasticsearch/importer/elasticsearch-jdbc/2.3.4.0/elasticsearch-jdbc-2.3.4.0-dist.zip`
 
@@ -230,6 +231,8 @@ Here is the list of parameters for the `jdbc` block in the definition.
 
 `autocommit` - `true` if each statement should be automatically executed. Default is `false`
 
+`track_acknowledges`: `true` register acknowledges in the complete fetch. Do not use with large count of records!
+
 `fetchsize` - the fetchsize for large result sets, most drivers use this to control the amount of rows in the buffer while iterating through the result set
 
 `max_rows` - limit the number of rows fetches by a statement, the rest of the rows is ignored
@@ -321,6 +324,7 @@ Quartz cron expression format (see below for syntax)
 	        "rounding" : null,
 	        "scale" : 2,
 	        "autocommit" : false,
+	        "track_acknowledges": true,
 	        "fetchsize" : 10, /* if URL contains MySQL JDBC driver URL, this is Integer.MIN */
 	        "max_rows" : 0,
 	        "max_retries" : 3,
@@ -1039,6 +1043,42 @@ jar to the classpath and add the `strategy` parameter to the specifications.
 
 8. You should see messages from the importer in the logfile.
 
+## Index data with usage of acknowledges (only available in msimons brache)
+  ```
+    {
+        "type" : "jdbc",
+        "name" : "My example feeder with acknowledge handling",
+        "jdbc" : {
+            "elasticsearch": {
+                "cluster": "elasticsearch-dev",
+                "host": "elasticsearchserver01",
+                "port": 5001
+            },
+            "strategy" : "simple",
+            "interval" : "5s",
+            "max_bulk_actions" : 500,
+            "autocommit" : true,
+            "track_acknowledges": true,
+            "max_concurrent_bulk_requests" : 1,
+            "concurrency" : 1,
+            "threadpoolsize" : 1,
+            "url" : "jdbc:oracle:thin:@oracledb:1521:devdb",
+            "user" : "developer",
+            "password" : "defaultpw",
+            "sql" :  [
+                {
+                    "statement" : "select * from \"example_table\" ORDER BY \"_job\""
+                },
+                {
+                    "parameter": [
+                        "$ack_jobs_max","$ack_jobs_failed"
+                    ],
+                    "statement": "{ call DB_HELPER_UTILS_PKG.remove_acknowledged_rows('example_table',?,?)}"
+                }
+             ]
+        }
+    }
+  ```
 ## Index simple geo coordinates from MySQL in Elasticsearch
 
 1. install MySQL e.g. in /usr/local/mysql
