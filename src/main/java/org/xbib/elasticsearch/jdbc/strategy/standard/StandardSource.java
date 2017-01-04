@@ -86,6 +86,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
 
     private String resultSetConcurrency = "CONCUR_UPDATABLE";
 
+    private boolean shouldTrackAcknowledges;
+
     private boolean shouldIgnoreNull;
 
     private boolean shouldDetectGeo;
@@ -290,6 +292,16 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
     public StandardSource<C>  setResultSetConcurrency(String resultSetConcurrency) {
         this.resultSetConcurrency = resultSetConcurrency;
         return this;
+    }
+
+    @Override
+    public JDBCSource<C> shouldTrackAcknowledges(boolean shouldTrackAcknowledges) {
+        this.shouldTrackAcknowledges = shouldTrackAcknowledges;
+        return this;
+    }
+
+    public boolean shouldTrackAcknowledges() {
+        return shouldTrackAcknowledges;
     }
 
     public String getResultSetConcurrency() {
@@ -1278,10 +1290,10 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
             } else if ("$metrics.counter".equals(s) || "$job".equals(s)) { // $job for legacy support
                 Long counter = sourceMetric != null ? sourceMetric.getCounter() : 0L;
                 statement.setLong(i, counter);
-            } else if ("$ack_jobs_max".equals(s)) {
+            } else if (shouldTrackAcknowledges && "$ack_jobs_max".equals(s)) {
                 Long counter = acknowledgeTracker.getMaxJob();
                 statement.setLong(i, counter);
-            }else if ("$ack_jobs_failed".equals(s)) {
+            }else if (shouldTrackAcknowledges && "$ack_jobs_failed".equals(s)) {
                 List<Long> failedJobs = acknowledgeTracker.getFailedJobs();
                 StringBuilder sb = new StringBuilder();
 

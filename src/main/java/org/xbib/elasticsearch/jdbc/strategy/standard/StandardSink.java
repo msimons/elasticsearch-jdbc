@@ -227,7 +227,10 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             logger.trace("adding bulk index action {}", request.source().toUtf8());
         }
 
-        acknowledgeTracker.trackJob(object,object.optype().toLowerCase());
+        if (acknowledgeTracker != null) {
+            acknowledgeTracker.trackJob(object, object.optype().toLowerCase());
+        }
+
         clientAPI.bulkIndex(request);
     }
 
@@ -263,7 +266,10 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             logger.trace("adding bulk delete action {}/{}/{}", request.index(), request.type(), request.id());
         }
 
-        acknowledgeTracker.trackJob(object,"delete");
+        if (acknowledgeTracker != null) {
+            acknowledgeTracker.trackJob(object, "delete");
+        }
+
         clientAPI.bulkDelete(request);
     }
 
@@ -301,7 +307,11 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             logger.trace("adding bulk update action {}/{}/{}", request.index(), request.type(), request.id());
         }
 
-        acknowledgeTracker.trackJob(object,"update");
+
+        if (acknowledgeTracker != null) {
+            acknowledgeTracker.trackJob(object, "update");
+        }
+
         clientAPI.bulkUpdate(request);
     }
 

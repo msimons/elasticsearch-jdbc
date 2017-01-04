@@ -157,6 +157,17 @@ public interface JDBCSource<C extends Context> extends Source<C> {
     JDBCSource<C> setResultSetConcurrency(String resultSetConcurrency);
 
     /**
+     * Should acknowledges be tracked? Do not use this when fetching a lot of records (in single fetch) because
+     * all records will be stored in memory and this can give problems.
+     *
+     * @param shouldTrackAcknowledges true if if acknoledges should be tracked. Default: false
+     * @return this context
+     */
+    JDBCSource<C> shouldTrackAcknowledges(boolean shouldTrackAcknowledges);
+
+    boolean shouldTrackAcknowledges();
+
+    /**
      * Should null values in columns be ignored for indexing. Default is false
      *
      * @param shouldIgnoreNull true if null values in columns should be ignored for indexing

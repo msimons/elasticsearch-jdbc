@@ -177,11 +177,14 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
         logger.debug("before fetch");
         Sink sink = createSink();
 
-        AcknowledgeTracker acknowledgeTracker = new AcknowledgeTracker(sink.getMetric().getAcknowledgeMetric());
-        sink.setAcknowledgeTracker(acknowledgeTracker);
 
         S source = createSource();
-        source.setAcknowledgeTracker(acknowledgeTracker);
+
+        if (source.shouldTrackAcknowledges()) {
+            AcknowledgeTracker acknowledgeTracker = new AcknowledgeTracker(sink.getMetric().getAcknowledgeMetric());
+            sink.setAcknowledgeTracker(acknowledgeTracker);
+            source.setAcknowledgeTracker(acknowledgeTracker);
+        }
 
         prepareContext(source, sink);
         sink.setContext(this);
@@ -294,11 +297,13 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
         String password = settings.get("password");
         String locale = settings.get("locale", LocaleUtil.fromLocale(Locale.getDefault()));
         String timezone = settings.get("timezone", TimeZone.getDefault().getID());
+        boolean trackAcknowledges = settings.getAsBoolean("track_acknowledges", false);
         source.setUrl(url)
                 .setUser(user)
                 .setPassword(password)
                 .setLocale(LocaleUtil.toLocale(locale))
-                .setTimeZone(TimeZone.getTimeZone(timezone));
+                .setTimeZone(TimeZone.getTimeZone(timezone))
+                .shouldTrackAcknowledges(trackAcknowledges);
         return source;
     }
 
@@ -337,6 +342,7 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
         TimeValue maxretrywait = XContentMapValues.nodeTimeValue(params.get("max_retries_wait"), TimeValue.timeValueSeconds(30));
         String resultSetType = XContentMapValues.nodeStringValue(params.get("resultset_type"), "TYPE_FORWARD_ONLY");
         String resultSetConcurrency = XContentMapValues.nodeStringValue(params.get("resultset_concurrency"), "CONCUR_UPDATABLE");
+        boolean shouldTrackAcknowledges = XContentMapValues.nodeBooleanValue(params.get("track_acknowledges"), false);
         boolean shouldIgnoreNull = XContentMapValues.nodeBooleanValue(params.get("ignore_null_values"), false);
         boolean shouldDetectGeo = XContentMapValues.nodeBooleanValue(params.get("detect_geo"), true);
         boolean shouldDetectJson = XContentMapValues.nodeBooleanValue(params.get("detect_json"), true);
@@ -356,6 +362,7 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
                 .setMaxRetryWait(maxretrywait)
                 .setResultSetType(resultSetType)
                 .setResultSetConcurrency(resultSetConcurrency)
+                .shouldTrackAcknowledges(shouldTrackAcknowledges)
                 .shouldIgnoreNull(shouldIgnoreNull)
                 .shouldDetectGeo(shouldDetectGeo)
                 .shouldDetectJson(shouldDetectJson)
