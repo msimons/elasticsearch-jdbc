@@ -1043,7 +1043,7 @@ jar to the classpath and add the `strategy` parameter to the specifications.
 
 8. You should see messages from the importer in the logfile.
 
-## Index data with usage of acknowledges (only available in msimons brache)
+## Index data with usage of acknowledges (only available in msimons branche)
   ```
     {
         "type" : "jdbc",
