@@ -165,6 +165,8 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
             end(prev); // here, the element is being prepared for bulk indexing
             prev = current;
             current = newObject();
+        } else {
+            prev.meta("_job", current.meta("_job"));
         }
         // create current object from values by sequentially merging the values
         for (int i = 0; i < keys.size() && i < values.size(); i++) {
