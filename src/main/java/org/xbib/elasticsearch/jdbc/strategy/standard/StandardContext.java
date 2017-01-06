@@ -27,6 +27,7 @@ import org.joda.time.DateTime;
 import org.xbib.elasticsearch.common.metrics.MetricsLogger;
 import org.xbib.elasticsearch.common.util.LocaleUtil;
 import org.xbib.elasticsearch.common.util.StrategyLoader;
+import org.xbib.elasticsearch.helper.client.AcknowledgeMetric;
 import org.xbib.elasticsearch.jdbc.strategy.Context;
 import org.xbib.elasticsearch.jdbc.strategy.JDBCSource;
 import org.xbib.elasticsearch.jdbc.strategy.Sink;
@@ -177,13 +178,10 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
         logger.debug("before fetch");
         Sink sink = createSink();
 
-
         S source = createSource();
 
         if (source.shouldTrackAcknowledges()) {
-            AcknowledgeTracker acknowledgeTracker = new AcknowledgeTracker(sink.getMetric().getAcknowledgeMetric());
-            sink.setAcknowledgeTracker(acknowledgeTracker);
-            source.setAcknowledgeTracker(acknowledgeTracker);
+            configureAcknowledgeTracking(sink, source);
         }
 
         prepareContext(source, sink);
@@ -191,6 +189,16 @@ public class StandardContext<S extends JDBCSource> implements Context<S, Sink> {
         source.setContext(this);
         getSink().beforeFetch();
         getSource().beforeFetch();
+    }
+
+    private void configureAcknowledgeTracking(Sink sink, S source) {
+        AcknowledgeMetric acknowledgeMetric = new AcknowledgeMetric();
+        AcknowledgeTracker acknowledgeTracker = new AcknowledgeTracker(acknowledgeMetric);
+
+        sink.setAcknowledgeTracker(acknowledgeTracker);
+        sink.getMetric().setAcknowledgeMetric(acknowledgeMetric);
+
+        source.setAcknowledgeTracker(acknowledgeTracker);
     }
 
     @Override

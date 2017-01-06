@@ -163,20 +163,29 @@ public class JDBCImporter
 
     private void prepare() throws IOException, InterruptedException {
         logger.debug("prepare started");
-        this.reloadSettings(settings); // reload settings to solve the schedule bug
-        if (settings.getAsStructuredMap().containsKey("jdbc")) {
-            settings = settings.getAsSettings("jdbc");
+
+
+        if (this.executorService == null) { // These actions should be prepared/initialized only once
+            logger.debug("prepare initialization");
+
+            Runtime.getRuntime().addShutdownHook(shutdownHook());
+
+            this.reloadSettings(settings); // We do not support live reloading after updating configuration!
+            if (settings.getAsStructuredMap().containsKey("jdbc")) {
+                settings = settings.getAsSettings("jdbc");
+            }
+
+            BlockingQueue<SettingsPipelineRequest> queue = new ArrayBlockingQueue<>(32);
+            setQueue(queue);
+
+            this.executorService = Executors.newFixedThreadPool(settings.getAsInt("concurrency", 1), r ->
+                        new Thread(r, "FixedThreadPool-" + threadPoolExecutors.getAndIncrement()));
+
         }
-        Runtime.getRuntime().addShutdownHook(shutdownHook());
-        BlockingQueue<SettingsPipelineRequest> queue = new ArrayBlockingQueue<>(32);
-        setQueue(queue);
+
+        // Schedule new request
         SettingsPipelineRequest element = new SettingsPipelineRequest().set(settings);
         getQueue().put(element);
-
-        if (this.executorService == null) {
-            this.executorService = Executors.newFixedThreadPool(settings.getAsInt("concurrency", 1), r ->
-                    new Thread(r, "FixedThreadPool-" + threadPoolExecutors.getAndIncrement()));
-        }
 
         logger.debug("prepare ended");
     }
