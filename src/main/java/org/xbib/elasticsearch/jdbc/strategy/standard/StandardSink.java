@@ -36,6 +36,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.xbib.elasticsearch.common.metrics.SinkMetric;
 import org.xbib.elasticsearch.common.util.ControlKeys;
 import org.xbib.elasticsearch.common.util.IndexableObject;
+import org.xbib.elasticsearch.helper.client.BulkTransportClient;
 import org.xbib.elasticsearch.helper.client.ClientAPI;
 import org.xbib.elasticsearch.helper.client.ClientBuilder;
 import org.xbib.elasticsearch.jdbc.strategy.Sink;
@@ -228,7 +229,9 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         }
 
         if (acknowledgeTracker != null) {
-            acknowledgeTracker.trackJob(object, object.optype().toLowerCase());
+            Long jobId = Long.parseLong(object.meta(ControlKeys._job.name()));
+            request.putHeader(BulkTransportClient.RELATED_JOB_ID, jobId);
+            acknowledgeTracker.trackJob(jobId);
         }
 
         clientAPI.bulkIndex(request);
@@ -267,7 +270,9 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
         }
 
         if (acknowledgeTracker != null) {
-            acknowledgeTracker.trackJob(object, "delete");
+            Long jobId = Long.parseLong(object.meta(ControlKeys._job.name()));
+            request.putHeader(BulkTransportClient.RELATED_JOB_ID, jobId);
+            acknowledgeTracker.trackJob(jobId);
         }
 
         clientAPI.bulkDelete(request);
@@ -307,9 +312,10 @@ public class StandardSink<C extends StandardContext> implements Sink<C> {
             logger.trace("adding bulk update action {}/{}/{}", request.index(), request.type(), request.id());
         }
 
-
         if (acknowledgeTracker != null) {
-            acknowledgeTracker.trackJob(object, "update");
+            Long jobId = Long.parseLong(object.meta(ControlKeys._job.name()));
+            request.putHeader(BulkTransportClient.RELATED_JOB_ID, jobId);
+            acknowledgeTracker.trackJob(jobId);
         }
 
         clientAPI.bulkUpdate(request);

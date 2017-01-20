@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import static org.xbib.elasticsearch.jdbc.strategy.Context.State.*;
+
 /**
  * The SQL command
  */
@@ -156,9 +158,9 @@ public class SQLCommand {
                     if (m.containsKey("parameter")) {
                         List<Object> parameters = XContentMapValues.extractRawValues("parameter", m);
 
-                        if(parameters.contains("$ack_jobs_max") || parameters.contains("$ack_jobs_failed")){
+                        if(parameters.contains("$ack_jobs_max")){
                             if(m.containsKey("statement") && (!m.get("statement").toString().toLowerCase().startsWith("select")))
-                            command.setState(Context.State.AFTER_FETCH);
+                            command.setState(AFTER_FETCH);
                         }
 
                         command.setParameters(parameters);

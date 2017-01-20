@@ -1073,9 +1073,9 @@ jar to the classpath and add the `strategy` parameter to the specifications.
                 },
                 {
                     "parameter": [
-                        "$ack_jobs_max","$ack_jobs_failed"
+                        "$ack_jobs_max"
                     ],
-                    "statement": "{ call DB_HELPER_UTILS_PKG.remove_acknowledged_rows('example_table',?,?)}"
+                    "statement": "{ delete * from \"example_table\" where _job <= ?}"
                 }
              ]
         }

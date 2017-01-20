@@ -1291,25 +1291,9 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                 Long counter = sourceMetric != null ? sourceMetric.getCounter() : 0L;
                 statement.setLong(i, counter);
             } else if (shouldTrackAcknowledges && "$ack_jobs_max".equals(s)) {
-                Long counter = acknowledgeTracker.getMaxJob();
+                Long counter = acknowledgeTracker.getHighestSucceededJobIdBeforeFirstFailedJob();
                 statement.setLong(i, counter);
-            }else if (shouldTrackAcknowledges && "$ack_jobs_failed".equals(s)) {
-                List<Long> failedJobs = acknowledgeTracker.getFailedJobs();
-                StringBuilder sb = new StringBuilder();
-
-                if(!failedJobs.isEmpty()) {
-                    boolean first = true;
-                    for (Long failedJob : failedJobs) {
-                        if (!first) sb.append(",");
-                        sb.append(failedJob);
-                        first = false;
-                    }
-                } else {
-                    sb.append("0");
-                }
-
-                statement.setString(i, sb.toString());
-            }else if ("$lastrowcount".equals(s)) {
+            } else if ("$lastrowcount".equals(s)) {
                 statement.setLong(i, getLastRowCount());
             } else if ("$lastexceptiondate".equals(s)) {
                 DateTime dateTime = context.getDateOfThrowable();

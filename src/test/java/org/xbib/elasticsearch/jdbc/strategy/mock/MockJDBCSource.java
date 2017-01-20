@@ -134,6 +134,16 @@ public class MockJDBCSource implements JDBCSource<MockContext> {
     }
 
     @Override
+    public JDBCSource<MockContext> shouldTrackAcknowledges(boolean shouldTrackAcknowledges) {
+        return null;
+    }
+
+    @Override
+    public boolean shouldTrackAcknowledges() {
+        return false;
+    }
+
+    @Override
     public JDBCSource<MockContext> shouldIgnoreNull(boolean shouldIgnoreNull) {
         return this;
     }
