@@ -451,50 +451,12 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
      */
     @Override
     public synchronized Connection getConnectionForReading() throws SQLException {
-        boolean invalid = readConnection == null || readConnection.isClosed();
-        try {
-            invalid = invalid || !readConnection.isValid(5);
-        } catch (AbstractMethodError e) {
-            // old/buggy JDBC driver
-            logger.debug(e.getMessage());
-        } catch (SQLFeatureNotSupportedException e) {
-            // postgresql does not support isValid()
-            logger.debug(e.getMessage());
-        }
-        if (invalid) {
+        if (isReadConnectionUnavailable()) {
             int retries = getRetries();
             while (retries > 0) {
                 retries--;
                 try {
-                    if (user != null) {
-                        Properties properties = new Properties();
-                        properties.put("user", user);
-                        if (password != null) {
-                            properties.put("password", password);
-                        }
-                        if (getConnectionProperties() != null) {
-                            properties.putAll(getConnectionProperties());
-                        }
-                        readConnection = DriverManager.getConnection(url, properties);
-                    } else {
-                        readConnection = DriverManager.getConnection(url);
-                    }
-                    DatabaseMetaData metaData = readConnection.getMetaData();
-                    if (shouldPrepareDatabaseMetadata()) {
-                        prepare(metaData);
-                    }
-                    if (metaData.getTimeDateFunctions().contains("TIMESTAMPDIFF")) {
-                        setTimestampDiffSupported(true);
-                    }
-                    // "readonly" is required by MySQL for large result streaming
-                    readConnection.setReadOnly(true);
-                    // Postgresql cursor mode condition:
-                    // fetchsize > 0, no scrollable result set, no auto commit, no holdable cursors over commit
-                    // https://github.com/pgjdbc/pgjdbc/blob/master/org/postgresql/jdbc2/AbstractJdbc2Statement.java#L514
-                    //readConnection.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);
-                    // many drivers don't like autocommit=true
-                    readConnection.setAutoCommit(getAutoCommit());
-                    return readConnection;
+                    return createConnectionForReading();
                 } catch (SQLException e) {
                     logger.error("while opening read connection: " + url + " " + e.getMessage(), e);
                     try {
@@ -509,6 +471,60 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
         return readConnection;
     }
 
+    private Connection createConnectionForReading() throws SQLException {
+        readConnection = createConnection();
+        DatabaseMetaData metaData = readConnection.getMetaData();
+        if (shouldPrepareDatabaseMetadata()) {
+            prepare(metaData);
+        }
+        if (metaData.getTimeDateFunctions().contains("TIMESTAMPDIFF")) {
+            setTimestampDiffSupported(true);
+        }
+        // "readonly" is required by MySQL for large result streaming
+        readConnection.setReadOnly(true);
+        // Postgresql cursor mode condition:
+        // fetchsize > 0, no scrollable result set, no auto commit, no holdable cursors over commit
+        // https://github.com/pgjdbc/pgjdbc/blob/master/org/postgresql/jdbc2/AbstractJdbc2Statement.java#L514
+        //readConnection.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        // many drivers don't like autocommit=true
+        readConnection.setAutoCommit(getAutoCommit());
+        return readConnection;
+    }
+
+    private Connection createConnection() throws SQLException {
+        Connection connection;
+        if (user != null) {
+            Properties properties = new Properties();
+            properties.put("user", user);
+            if (password != null) {
+                properties.put("password", password);
+            }
+            if (getConnectionProperties() != null) {
+                properties.putAll(getConnectionProperties());
+            }
+            connection = DriverManager.getConnection(url, properties);
+        } else {
+            connection = DriverManager.getConnection(url);
+        }
+
+        return connection;
+    }
+
+    private boolean isWriteConnectionUnavailable() throws SQLException {
+        return !isonnectionAvailable(writeConnection);
+    }
+
+    private boolean isReadConnectionUnavailable() throws SQLException {
+        return !isonnectionAvailable(readConnection);
+    }
+
+    private boolean isonnectionAvailable(Connection connection) throws SQLException {
+        if (connection!= null && !connection.isClosed()) {
+            return connection.isValid(5);
+        }
+        return false;
+    }
+
     /**
      * Get JDBC connection for writing. FOr executing "update", "insert", callable statements
      *
@@ -517,32 +533,12 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
      */
     @Override
     public synchronized Connection getConnectionForWriting() throws SQLException {
-        boolean invalid = writeConnection == null || writeConnection.isClosed();
-        try {
-            invalid = invalid || !writeConnection.isValid(5);
-        } catch (AbstractMethodError e) {
-            // old/buggy JDBC driver do not implement isValid()
-        } catch (SQLFeatureNotSupportedException e) {
-            // Example: postgresql does implement but not support isValid()
-        }
-        if (invalid) {
+        if (isWriteConnectionUnavailable()) {
             int retries = getRetries();
             while (retries > 0) {
                 retries--;
                 try {
-                    if (user != null) {
-                        Properties properties = new Properties();
-                        properties.put("user", user);
-                        if (password != null) {
-                            properties.put("password", password);
-                        }
-                        if (getConnectionProperties() != null) {
-                            properties.putAll(getConnectionProperties());
-                        }
-                        writeConnection = DriverManager.getConnection(url, properties);
-                    } else {
-                        writeConnection = DriverManager.getConnection(url);
-                    }
+                    writeConnection = createConnection();
                     // many drivers don't like autocommit=true
                     writeConnection.setAutoCommit(getAutoCommit());
                     return writeConnection;
@@ -638,7 +634,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
     @Override
     public void afterFetch() throws Exception {
         List<SQLCommand> commands = getStatements().stream().filter(command -> Context.State.AFTER_FETCH.equals(command.getState()))
-                                                            .collect(Collectors.toList());
+                .collect(Collectors.toList());
         fetch(commands);
 
         shutdown();
@@ -648,11 +644,7 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
     public void shutdown() {
         logger.debug("shutdown");
         closeReading();
-        logger.debug("read connection closed");
-        readConnection = null;
         closeWriting();
-        logger.debug("write connection closed");
-        writeConnection = null;
     }
 
     /**
@@ -1149,18 +1141,13 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
         return this;
     }
 
-    /**
-     * Close read connection
-     */
     @Override
     public StandardSource<C> closeReading() {
         try {
             if (readConnection != null && !readConnection.isClosed()) {
-                // always commit before close to getFailedJobs cursors/transactions
-                if (!readConnection.getAutoCommit()) {
-                    readConnection.commit();
-                }
                 readConnection.close();
+                readConnection = null;
+                logger.debug("read connection closed");
             }
         } catch (SQLException e) {
             logger.warn("while closing read connection: " + e.getMessage());
@@ -1168,9 +1155,6 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
         return this;
     }
 
-    /**
-     * Close read connection
-     */
     @Override
     public StandardSource<C> closeWriting() {
         try {
@@ -1180,6 +1164,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
                     writeConnection.commit();
                 }
                 writeConnection.close();
+                writeConnection = null;
+                logger.debug("write connection closed");
             }
         } catch (SQLException e) {
             logger.warn("while closing write connection: " + e.getMessage());
