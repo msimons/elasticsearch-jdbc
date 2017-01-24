@@ -695,6 +695,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
         } finally {
             close(results);
             close(statement);
+            closeReading();
+            closeWriting();
         }
     }
 
@@ -728,6 +730,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
         } finally {
             close(results);
             close(statement);
+            closeReading();
+            closeWriting();
         }
     }
 
@@ -771,6 +775,8 @@ public class StandardSource<C extends StandardContext> implements JDBCSource<C> 
             }
         } finally {
             close(statement);
+            closeReading();
+            closeWriting();
         }
     }
 
