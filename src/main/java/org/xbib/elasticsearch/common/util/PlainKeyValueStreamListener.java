@@ -172,7 +172,7 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
         for (int i = 0; i < keys.size() && i < values.size(); i++) {
             Object v = null;
             try {
-                String currentFieldValue = values.get(i).toString();
+                V currentFieldValue = values.get(i);
 
                 final K currentFieldKey = keys.get(i);
 
@@ -190,7 +190,7 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
                     final String backupFieldName = BACKUP_FIELD_PREFIX + currentFieldKey;
                     int backupFieldIndex = keys.indexOf(backupFieldName);
                     if (backupFieldIndex >= 0) {
-                        currentFieldValue = values.get(backupFieldIndex).toString();
+                        currentFieldValue = values.get(backupFieldIndex);
                     } else {
                         continue;
                     }
@@ -201,36 +201,38 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
                     }
 
                     // All requirements of the backup process are now valid. Now check if there is also a value or we have to set the backup field value
-                    Object existingFieldValue = fieldValue(prev.index(), prev.type(), prev.id(), String.valueOf(currentFieldKey));
+                    V existingFieldValue = (V) fieldValue(prev.index(), prev.type(), prev.id(), String.valueOf(currentFieldKey));
                     if (existingFieldValue != null) {
-                        currentFieldValue = existingFieldValue.toString();
+                        currentFieldValue = existingFieldValue;
                     }
 
                     // Backup field value will be used. Continue default flow...
-                }
+                } else {
 
+                    String currentFieldValueString = String.valueOf(currentFieldValue);
 
-                // geo content?
-                if (shouldDetectGeo && currentFieldValue.startsWith("POLYGON(") || currentFieldValue.startsWith("POINT(")) {
-                    SpatialContext ctx = JtsSpatialContext.GEO;
-                    Shape shape = ctx.readShapeFromWkt(currentFieldValue);
-                    XContentBuilder builder = jsonBuilder();
-                    builder.startObject();
-                    GeoJSONShapeSerializer.serialize(shape, builder);
-                    builder.endObject();
-                    currentFieldValue = builder.string();
-                }
-                // JSON content?
-                if (shouldDetectJson) {
-                    XContentParser parser = JsonXContent.jsonXContent.createParser(currentFieldValue);
-                    XContentParser.Token token = parser.currentToken();
-                    if(token == null) {
-                        token = parser.nextToken();
+                    // geo content?
+                    if (shouldDetectGeo && currentFieldValueString.startsWith("POLYGON(") || currentFieldValueString.startsWith("POINT(")) {
+                        SpatialContext ctx = JtsSpatialContext.GEO;
+                        Shape shape = ctx.readShapeFromWkt(currentFieldValueString);
+                        XContentBuilder builder = jsonBuilder();
+                        builder.startObject();
+                        GeoJSONShapeSerializer.serialize(shape, builder);
+                        builder.endObject();
+                        currentFieldValueString = builder.string();
                     }
-                    if (token == XContentParser.Token.START_OBJECT) {
-                        v = parser.map();
-                    } else if (token == XContentParser.Token.START_ARRAY) {
-                        v = parser.list();
+                    // JSON content?
+                    if (shouldDetectJson) {
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(currentFieldValueString);
+                        XContentParser.Token token = parser.currentToken();
+                        if (token == null) {
+                            token = parser.nextToken();
+                        }
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            v = parser.map();
+                        } else if (token == XContentParser.Token.START_ARRAY) {
+                            v = parser.list();
+                        }
                     }
                 }
             } catch (Exception e) {

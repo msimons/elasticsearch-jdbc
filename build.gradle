@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'org.xbib.elasticsearch.importer'
-version = '2.3.4.5-msimons'
+version = '2.3.4.6-msimons'
 
 println "Host: " + java.net.InetAddress.getLocalHost()
 println "Gradle: " + gradle.gradleVersion + " JVM: " + org.gradle.internal.jvm.Jvm.current() + " Groovy: " + GroovySystem.getVersion()
