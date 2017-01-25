@@ -206,6 +206,8 @@ public class PlainKeyValueStreamListener<K, V> implements KeyValueStreamListener
                         currentFieldValue = existingFieldValue;
                     }
 
+                    v = currentFieldValue;
+
                     // Backup field value will be used. Continue default flow...
                 } else {
 
